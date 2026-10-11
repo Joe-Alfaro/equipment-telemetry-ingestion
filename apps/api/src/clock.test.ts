@@ -47,7 +47,7 @@ async function publishedFor(eventTime: string): Promise<ReadingMessage | undefin
 }
 
 describe('POST /ingest/readings: the naive marker (rule 2)', () => {
-  it.fails.each([
+  it.each([
     ['2026-10-10T17:30:00', '2026-10-10T17:30:00Z'],
     ['2026-10-10T17:30:00.123456', '2026-10-10T17:30:00.123456Z'],
   ])('publishes naiveTime: true for %s', async (eventTime, published) => {
@@ -60,7 +60,7 @@ describe('POST /ingest/readings: the naive marker (rule 2)', () => {
     expect(await publishedFor(eventTime)).toStrictEqual(expected)
   })
 
-  it.fails.each([
+  it.each([
     '2026-10-10T12:00:00Z',
     '2026-10-10T12:00:00.123456+00:00',
     '2026-10-10T17:30:00+05:30',
@@ -86,13 +86,13 @@ describe('api config: CLOCK_SKEW_THRESHOLD_MS (rule 4)', () => {
     vi.unstubAllEnvs()
   })
 
-  it.fails('defaults clockSkewThresholdMs to 60000', () => {
+  it('defaults clockSkewThresholdMs to 60000', () => {
     vi.stubEnv('CLOCK_SKEW_THRESHOLD_MS', undefined)
 
     expect(loadConfig()).toMatchObject({ clockSkewThresholdMs: 60_000 })
   })
 
-  it.fails('reads clockSkewThresholdMs from CLOCK_SKEW_THRESHOLD_MS', () => {
+  it('reads clockSkewThresholdMs from CLOCK_SKEW_THRESHOLD_MS', () => {
     vi.stubEnv('CLOCK_SKEW_THRESHOLD_MS', '5000')
 
     expect(loadConfig()).toMatchObject({ clockSkewThresholdMs: 5_000 })

@@ -166,7 +166,7 @@ afterAll(async () => {
 describe('generator scenario shapes raise no clock warnings (rule 7)', () => {
   const options = { now: new Date('2026-10-10T18:00:00.000Z'), lateThresholdMs: 30_000 }
 
-  it.fails('judges every scenario gateway ok, with the samples it has', async () => {
+  it('judges every scenario gateway ok, with the samples it has', async () => {
     const gateways = await listGateways(pool(), options)
 
     expect(gateways.map((gateway) => [gateway.gatewayId, gateway.clock])).toStrictEqual([
@@ -182,7 +182,7 @@ describe('generator scenario shapes raise no clock warnings (rule 7)', () => {
     ])
   })
 
-  it.fails('gives every scenario device an empty clockWarnings array', async () => {
+  it('gives every scenario device an empty clockWarnings array', async () => {
     const devices = await listDevices(pool(), options)
 
     expect(devices).toHaveLength(5 + 1 + 20 + 1)

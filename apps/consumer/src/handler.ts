@@ -30,12 +30,13 @@ export function decodeReadingMessage(content: Buffer): ReadingMessage | null {
     if (typeof decoded !== 'object' || decoded === null) {
       return null
     }
-    const { reading, receivedAt } = decoded as Record<string, unknown>
+    const { reading, receivedAt, naiveTime } = decoded as Record<string, unknown>
     const parsed = parseIngestReading(reading)
     if (!parsed.ok || !isIsoTimestampWithOffset(receivedAt)) {
       return null
     }
-    return { reading: parsed.value, receivedAt }
+    // Absent on envelopes published before the clock check.
+    return { reading: parsed.value, receivedAt, naiveTime: naiveTime === true }
   } catch {
     return null
   }

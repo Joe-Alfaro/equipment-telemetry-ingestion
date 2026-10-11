@@ -24,6 +24,7 @@ export function buildApp({
   pool,
   now = () => new Date(),
   lateThresholdMs = 30_000,
+  clockSkewThresholdMs = 60_000,
   gatewayEventIntervalMs = 1_000,
   logger = false,
 }: AppDeps) {
@@ -48,8 +49,11 @@ export function buildApp({
       return reply.code(400).send(body)
     }
 
+    // Validation appends Z to a naive event_time and leaves one with an offset unchanged.
+    const naiveTime =
+      parsed.value.event_time !== (request.body as { event_time: unknown }).event_time
     try {
-      await publisher.publish({ reading: parsed.value, receivedAt: now().toISOString() })
+      await publisher.publish({ reading: parsed.value, receivedAt: now().toISOString(), naiveTime })
     } catch (error) {
       request.log.error({ err: error }, 'failed to publish reading')
       const body: ApiError = { error: 'broker unavailable' }
@@ -60,7 +64,7 @@ export function buildApp({
   })
 
   if (pool) {
-    registerReadApi(app, { pool, now, lateThresholdMs })
+    registerReadApi(app, { pool, now, lateThresholdMs, clockSkewThresholdMs })
     registerStream(app, { pool, gatewayEventIntervalMs })
   }
 

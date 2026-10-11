@@ -8,7 +8,13 @@ const pool = createPool(config.databaseUrl)
 const connection = await connectBroker(config.amqpUrl, { log: console.warn })
 const publisher = await createReadingPublisher(connection, config.readingsQueue)
 
-const app = buildApp({ publisher, pool, lateThresholdMs: config.lateThresholdMs, logger: true })
+const app = buildApp({
+  publisher,
+  pool,
+  lateThresholdMs: config.lateThresholdMs,
+  clockSkewThresholdMs: config.clockSkewThresholdMs,
+  logger: true,
+})
 
 // Losing the broker means we can no longer confirm readings; exit and let the
 // orchestrator (docker compose `restart`) bring us back with a fresh connection.

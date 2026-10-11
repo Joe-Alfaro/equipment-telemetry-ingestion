@@ -99,104 +99,93 @@ afterEach(async () => {
 })
 
 describe('naive marker: api -> broker -> database (rule 2)', () => {
-  it.fails(
-    'marks the envelope and the stored reading naive only when event_time had no offset',
-    async () => {
-      const { messages } = await ingest([
-        body('gw-ist', 'dev-1', 0, istLocal(0)),
-        body('gw-ist', 'dev-1', 1, '2026-10-10T17:30:01+05:30'),
-        body('gw-ist', 'dev-1', 2, '2026-10-10T12:00:02Z'),
-      ])
+  it('marks the envelope and the stored reading naive only when event_time had no offset', async () => {
+    const { messages } = await ingest([
+      body('gw-ist', 'dev-1', 0, istLocal(0)),
+      body('gw-ist', 'dev-1', 1, '2026-10-10T17:30:01+05:30'),
+      body('gw-ist', 'dev-1', 2, '2026-10-10T12:00:02Z'),
+    ])
 
-      expect(messages.map((message) => message.naiveTime)).toEqual([true, false, false])
-      expect(messages.map((message) => message.receivedAt)).toEqual([
-        BASE,
-        isoAt(BASE, 1_000),
-        isoAt(BASE, 2_000),
-      ])
-      const { rows } = await pool().query<{ sequence: number; naive_time: boolean }>(
-        `SELECT sequence::int AS sequence, naive_time FROM readings ORDER BY sequence`,
-      )
-      expect(rows).toEqual([
-        { sequence: 0, naive_time: true },
-        { sequence: 1, naive_time: false },
-        { sequence: 2, naive_time: false },
-      ])
-    },
-  )
+    expect(messages.map((message) => message.naiveTime)).toEqual([true, false, false])
+    expect(messages.map((message) => message.receivedAt)).toEqual([
+      BASE,
+      isoAt(BASE, 1_000),
+      isoAt(BASE, 2_000),
+    ])
+    const { rows } = await pool().query<{ sequence: number; naive_time: boolean }>(
+      `SELECT sequence::int AS sequence, naive_time FROM readings ORDER BY sequence`,
+    )
+    expect(rows).toEqual([
+      { sequence: 0, naive_time: true },
+      { sequence: 1, naive_time: false },
+      { sequence: 2, naive_time: false },
+    ])
+  })
 })
 
 describe('GET /api/gateways and GET /api/devices: clock fields (rule 5)', () => {
-  it.fails(
-    'reports a UTC+5:30 gateway sending naive local time as local-time, and warns its devices',
-    async () => {
-      const { api } = await ingest([
-        ...[0, 1, 2, 3, 4].map((i) => body('gw-ist', i < 3 ? 'dev-1' : 'dev-2', i, istLocal(i))),
-        ...[5, 6, 7, 8, 9].map((i) =>
-          body('gw-utc', 'dev-3', i, `2026-10-10T12:00:0${i}.250+00:00`),
-        ),
-      ])
+  it('reports a UTC+5:30 gateway sending naive local time as local-time, and warns its devices', async () => {
+    const { api } = await ingest([
+      ...[0, 1, 2, 3, 4].map((i) => body('gw-ist', i < 3 ? 'dev-1' : 'dev-2', i, istLocal(i))),
+      ...[5, 6, 7, 8, 9].map((i) => body('gw-utc', 'dev-3', i, `2026-10-10T12:00:0${i}.250+00:00`)),
+    ])
 
-      const gateways = await api.inject({ method: 'GET', url: '/api/gateways' })
-      expect(gateways.statusCode).toBe(200)
-      const clocks: [string, GatewayClock][] = [
-        ['gw-ist', { status: 'local-time', offsetMs: UTC_PLUS_5_30, samples: 5 }],
-        ['gw-utc', { status: 'ok', offsetMs: null, samples: 5 }],
-      ]
-      expect(
-        gateways
-          .json<{ gatewayId: string; clock: GatewayClock }[]>()
-          .map((gateway) => [gateway.gatewayId, gateway.clock]),
-      ).toStrictEqual(clocks)
+    const gateways = await api.inject({ method: 'GET', url: '/api/gateways' })
+    expect(gateways.statusCode).toBe(200)
+    const clocks: [string, GatewayClock][] = [
+      ['gw-ist', { status: 'local-time', offsetMs: UTC_PLUS_5_30, samples: 5 }],
+      ['gw-utc', { status: 'ok', offsetMs: null, samples: 5 }],
+    ]
+    expect(
+      gateways
+        .json<{ gatewayId: string; clock: GatewayClock }[]>()
+        .map((gateway) => [gateway.gatewayId, gateway.clock]),
+    ).toStrictEqual(clocks)
 
-      const devices = await api.inject({ method: 'GET', url: '/api/devices' })
-      expect(devices.statusCode).toBe(200)
-      const warning: ClockWarning = {
-        gatewayId: 'gw-ist',
-        status: 'local-time',
-        offsetMs: UTC_PLUS_5_30,
-      }
-      expect(
-        devices
-          .json<{ deviceId: string; clockWarnings: ClockWarning[] }[]>()
-          .map((device) => [device.deviceId, device.clockWarnings]),
-      ).toStrictEqual([
-        ['dev-1', [warning]],
-        ['dev-2', [warning]],
-        ['dev-3', []],
-      ])
-    },
-  )
+    const devices = await api.inject({ method: 'GET', url: '/api/devices' })
+    expect(devices.statusCode).toBe(200)
+    const warning: ClockWarning = {
+      gatewayId: 'gw-ist',
+      status: 'local-time',
+      offsetMs: UTC_PLUS_5_30,
+    }
+    expect(
+      devices
+        .json<{ deviceId: string; clockWarnings: ClockWarning[] }[]>()
+        .map((device) => [device.deviceId, device.clockWarnings]),
+    ).toStrictEqual([
+      ['dev-1', [warning]],
+      ['dev-2', [warning]],
+      ['dev-3', []],
+    ])
+  })
 
-  it.fails(
-    'reports a gateway whose clock runs 90 s fast as ahead, using clockSkewThresholdMs',
-    async () => {
-      const fast = [0, 1, 2, 3, 4].map((i) =>
-        body('gw-fast', 'dev-1', i, isoAt(BASE, i * 1_000 + 90_000)),
-      )
+  it('reports a gateway whose clock runs 90 s fast as ahead, using clockSkewThresholdMs', async () => {
+    const fast = [0, 1, 2, 3, 4].map((i) =>
+      body('gw-fast', 'dev-1', i, isoAt(BASE, i * 1_000 + 90_000)),
+    )
 
-      const { api } = await ingest(fast)
-      const relaxedApi = app(
-        { now: new Date(isoAt(BASE, 60_000)) },
-        { clockSkewThresholdMs: 120_000 },
-      )
+    const { api } = await ingest(fast)
+    const relaxedApi = app(
+      { now: new Date(isoAt(BASE, 60_000)) },
+      { clockSkewThresholdMs: 120_000 },
+    )
 
-      const ahead = await api.inject({ method: 'GET', url: '/api/gateways' })
-      expect(ahead.json()).toMatchObject([
-        { gatewayId: 'gw-fast', clock: { status: 'ahead', offsetMs: 90_000, samples: 5 } },
-      ])
-      const devices = await api.inject({ method: 'GET', url: '/api/devices?status=unregistered' })
-      expect(devices.json()).toMatchObject([
-        {
-          deviceId: 'dev-1',
-          clockWarnings: [{ gatewayId: 'gw-fast', status: 'ahead', offsetMs: 90_000 }],
-        },
-      ])
+    const ahead = await api.inject({ method: 'GET', url: '/api/gateways' })
+    expect(ahead.json()).toMatchObject([
+      { gatewayId: 'gw-fast', clock: { status: 'ahead', offsetMs: 90_000, samples: 5 } },
+    ])
+    const devices = await api.inject({ method: 'GET', url: '/api/devices?status=unregistered' })
+    expect(devices.json()).toMatchObject([
+      {
+        deviceId: 'dev-1',
+        clockWarnings: [{ gatewayId: 'gw-fast', status: 'ahead', offsetMs: 90_000 }],
+      },
+    ])
 
-      const relaxed = await relaxedApi.inject({ method: 'GET', url: '/api/gateways' })
-      expect(relaxed.json()).toMatchObject([
-        { gatewayId: 'gw-fast', clock: { status: 'ok', offsetMs: null, samples: 5 } },
-      ])
-    },
-  )
+    const relaxed = await relaxedApi.inject({ method: 'GET', url: '/api/gateways' })
+    expect(relaxed.json()).toMatchObject([
+      { gatewayId: 'gw-fast', clock: { status: 'ok', offsetMs: null, samples: 5 } },
+    ])
+  })
 })

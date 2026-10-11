@@ -23,13 +23,13 @@ function encode(envelope: Record<string, unknown>): Buffer {
 }
 
 describe('decodeReadingMessage: the naive marker (rule 2)', () => {
-  it.fails.each([true, false])('keeps naiveTime: %s', (naiveTime) => {
+  it.each([true, false])('keeps naiveTime: %s', (naiveTime) => {
     const expected: ReadingMessage = { reading, receivedAt, naiveTime }
 
     expect(decodeReadingMessage(encode({ reading, receivedAt, naiveTime }))).toStrictEqual(expected)
   })
 
-  it.fails('decodes an envelope without the marker as naiveTime: false', () => {
+  it('decodes an envelope without the marker as naiveTime: false', () => {
     const expected: ReadingMessage = { reading, receivedAt, naiveTime: false }
 
     expect(decodeReadingMessage(encode({ reading, receivedAt }))).toStrictEqual(expected)

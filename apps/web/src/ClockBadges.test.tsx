@@ -28,7 +28,7 @@ function localTime(gatewayId: string, offsetMs: number): ClockWarning {
 const ANY_CLOCK_BADGE = /^(clock ahead|local time\?)/i
 
 describe('clock warning badges (rule 6)', () => {
-  it.fails('shows one badge per warning on a board card, each describing its gateway', async () => {
+  it('shows one badge per warning on a board card, each describing its gateway', async () => {
     installFakeApi({
       devices: [
         registeredDevice('dev-1', 'Chiller 1', {
@@ -53,34 +53,31 @@ describe('clock warning badges (rule 6)', () => {
     expect(within(boiler).queryByText(ANY_CLOCK_BADGE)).not.toBeInTheDocument()
   })
 
-  it.fails(
-    'shows the badges on inbox cards too, in seconds under a minute and for negative offsets',
-    async () => {
-      installFakeApi({
-        devices: [
-          unregisteredDevice('dev-5', {
-            gateways: ['gw-chi', 'gw-skew'],
-            clockWarnings: [ahead('gw-skew', 45_000), localTime('gw-chi', -18_000_000)],
-          }),
-          unregisteredDevice('dev-6', { clockWarnings: [] }),
-        ],
-      })
-      renderApp()
-      const inbox = await findRegion('New devices')
-      const warned = await within(inbox).findByRole('article', { name: 'dev-5' })
-      const clean = within(inbox).getByRole('article', { name: 'dev-6' })
+  it('shows the badges on inbox cards too, in seconds under a minute and for negative offsets', async () => {
+    installFakeApi({
+      devices: [
+        unregisteredDevice('dev-5', {
+          gateways: ['gw-chi', 'gw-skew'],
+          clockWarnings: [ahead('gw-skew', 45_000), localTime('gw-chi', -18_000_000)],
+        }),
+        unregisteredDevice('dev-6', { clockWarnings: [] }),
+      ],
+    })
+    renderApp()
+    const inbox = await findRegion('New devices')
+    const warned = await within(inbox).findByRole('article', { name: 'dev-5' })
+    const clean = within(inbox).getByRole('article', { name: 'dev-6' })
 
-      expect(within(warned).getByText('Clock ahead ~45s')).toHaveAccessibleDescription(
-        expect.stringContaining('gw-skew'),
-      )
-      expect(within(warned).getByText(/^Local time\? UTC[−-]5$/)).toHaveAccessibleDescription(
-        expect.stringContaining('gw-chi'),
-      )
-      expect(within(clean).queryByText(ANY_CLOCK_BADGE)).not.toBeInTheDocument()
-    },
-  )
+    expect(within(warned).getByText('Clock ahead ~45s')).toHaveAccessibleDescription(
+      expect.stringContaining('gw-skew'),
+    )
+    expect(within(warned).getByText(/^Local time\? UTC[−-]5$/)).toHaveAccessibleDescription(
+      expect.stringContaining('gw-chi'),
+    )
+    expect(within(clean).queryByText(ANY_CLOCK_BADGE)).not.toBeInTheDocument()
+  })
 
-  it.fails.each([
+  it.each([
     ['Clock ahead ~59s', ahead('gw-x', 59_000)],
     ['Clock ahead ~1m', ahead('gw-x', 60_000)],
     ['Clock ahead ~10m', ahead('gw-x', 10 * MINUTE)],
@@ -99,7 +96,7 @@ describe('clock warning badges (rule 6)', () => {
     )
   })
 
-  it.fails('adds a badge on gateway-updated and removes it on device-updated', async () => {
+  it('adds a badge on gateway-updated and removes it on device-updated', async () => {
     const api = installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1', { clockWarnings: [] })],
     })

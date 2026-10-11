@@ -6,7 +6,7 @@ export interface ApiConfig {
   readingsQueue: string
   lateThresholdMs: number
   /** CLOCK_SKEW_THRESHOLD_MS: a gateway clock is `ahead` past this median skew. Default 60000. */
-  clockSkewThresholdMs?: number
+  clockSkewThresholdMs: number
 }
 
 function required(name: string): string {
@@ -26,5 +26,6 @@ export function loadConfig(): ApiConfig {
     amqpUrl: required('AMQP_URL'),
     readingsQueue: process.env.READINGS_QUEUE ?? 'readings',
     lateThresholdMs: Number(process.env.LATE_THRESHOLD_MS ?? 30_000),
+    clockSkewThresholdMs: Number(process.env.CLOCK_SKEW_THRESHOLD_MS ?? 60_000),
   }
 }

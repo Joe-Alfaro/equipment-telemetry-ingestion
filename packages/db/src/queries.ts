@@ -1,11 +1,14 @@
 import type {
+  ClockWarning,
   DeviceStatus,
   DeviceSummary,
+  GatewayClock,
   GatewaySummary,
   MetricState,
   Reading,
   StreamEvent,
 } from '@telemetry/shared'
+import { CLOCK_WINDOW_SIZE, computeGatewayClock, type ClockSample } from './clock'
 import { TELEMETRY_EVENTS_CHANNEL } from './events'
 import type { Pool } from './pool'
 
@@ -49,13 +52,72 @@ interface CurrentStateRow {
 // Shared by gateway staleness everywhere: stale when now - last_seen_at > threshold (strictly).
 const STALE = `$1::timestamptz - g.last_seen_at > $2::double precision * interval '1 millisecond'`
 
+const NO_READINGS: GatewayClock = { status: 'unknown', offsetMs: null, samples: 0 }
+
+/**
+ * Each gateway's clock from its last CLOCK_WINDOW_SIZE readings by received_at (one index scan
+ * per gateway on readings (gateway_id, received_at DESC)). Gateways without readings are unknown.
+ */
+async function gatewayClocks(
+  pool: Pool,
+  gatewayIds: string[],
+  thresholdMs: number | undefined,
+): Promise<Map<string, GatewayClock>> {
+  if (gatewayIds.length === 0) {
+    return new Map()
+  }
+  const { rows } = await pool.query<{
+    gateway_id: string
+    event_time: Date
+    received_at: Date
+    naive_time: boolean
+  }>(
+    `SELECT g.gateway_id, w.event_time, w.received_at, w.naive_time
+       FROM unnest($1::text[]) AS g (gateway_id)
+       CROSS JOIN LATERAL (
+         SELECT r.event_time, r.received_at, r.naive_time FROM readings r
+          WHERE r.gateway_id = g.gateway_id
+          ORDER BY r.received_at DESC LIMIT $2
+       ) w`,
+    [gatewayIds, CLOCK_WINDOW_SIZE],
+  )
+  const samplesByGateway = rows.reduce((acc, row) => {
+    const sample: ClockSample = {
+      eventTime: row.event_time.toISOString(),
+      receivedAt: row.received_at.toISOString(),
+      naiveTime: row.naive_time,
+    }
+    return acc.set(row.gateway_id, [...(acc.get(row.gateway_id) ?? []), sample])
+  }, new Map<string, ClockSample[]>())
+  return new Map(
+    gatewayIds.map((gatewayId) => {
+      const samples = samplesByGateway.get(gatewayId)
+      const clock = samples ? computeGatewayClock(samples, { thresholdMs }) : NO_READINGS
+      return [gatewayId, clock]
+    }),
+  )
+}
+
+function clockWarnings(gatewayIds: string[], clocks: Map<string, GatewayClock>): ClockWarning[] {
+  return gatewayIds.flatMap((gatewayId) => {
+    const clock = clocks.get(gatewayId)
+    if (!clock || clock.offsetMs === null) {
+      return []
+    }
+    if (clock.status !== 'ahead' && clock.status !== 'local-time') {
+      return []
+    }
+    return [{ gatewayId, status: clock.status, offsetMs: clock.offsetMs }]
+  })
+}
+
 /**
  * Device summaries matching `where` ($3 onward), ordered by deviceId. Text is ordered with
  * COLLATE "C" so the API order matches a plain JS string sort regardless of database locale.
  */
 async function queryDevices(
   pool: Pool,
-  { now, lateThresholdMs }: ReadOptions,
+  { now, lateThresholdMs, clockSkewThresholdMs }: ReadOptions,
   where: string,
   params: unknown[],
 ): Promise<DeviceSummary[]> {
@@ -96,20 +158,24 @@ async function queryDevices(
     return acc.set(state.device_id, { ...metrics, [state.metric]: metric })
   }, new Map<string, Record<string, MetricState>>())
 
-  // C-T type stub: clockWarnings is not computed yet (C-I); see clock.integration.test.ts.
-  return devices.map(
-    (device) =>
-      ({
-        deviceId: device.device_id,
-        status: device.status,
-        name: device.name,
-        firstSeenAt: device.first_seen_at.toISOString(),
-        firstSeenGatewayId: device.first_seen_gateway_id,
-        gateways: device.gateways,
-        possiblyBehind: device.possibly_behind,
-        metrics: metricsByDevice.get(device.device_id) ?? {},
-      }) as DeviceSummary,
+  const clocks = await gatewayClocks(
+    pool,
+    [...new Set(devices.flatMap((device) => device.gateways))],
+    clockSkewThresholdMs,
   )
+
+  return devices.map((device) => ({
+    deviceId: device.device_id,
+    status: device.status,
+    name: device.name,
+    firstSeenAt: device.first_seen_at.toISOString(),
+    firstSeenGatewayId: device.first_seen_gateway_id,
+    gateways: device.gateways,
+    possiblyBehind: device.possibly_behind,
+    metrics: metricsByDevice.get(device.device_id) ?? {},
+    // device.gateways is already ordered by gatewayId.
+    clockWarnings: clockWarnings(device.gateways, clocks),
+  }))
 }
 
 /** Devices ordered by deviceId. The contract is documented in queries.integration.test.ts. */
@@ -178,22 +244,24 @@ export async function listReadings(pool: Pool, deviceId: string): Promise<Readin
 /** Gateways ordered by gatewayId. */
 export async function listGateways(
   pool: Pool,
-  { now, lateThresholdMs }: ReadOptions,
+  { now, lateThresholdMs, clockSkewThresholdMs }: ReadOptions,
 ): Promise<GatewaySummary[]> {
   const { rows } = await pool.query<{ gateway_id: string; last_seen_at: Date; stale: boolean }>(
     `SELECT g.gateway_id, g.last_seen_at, ${STALE} AS stale
        FROM gateways g ORDER BY g.gateway_id COLLATE "C"`,
     [now.toISOString(), lateThresholdMs],
   )
-  // C-T type stub: clock is not computed yet (C-I); see clock.integration.test.ts.
-  return rows.map(
-    (row) =>
-      ({
-        gatewayId: row.gateway_id,
-        lastSeenAt: row.last_seen_at.toISOString(),
-        stale: row.stale,
-      }) as GatewaySummary,
+  const clocks = await gatewayClocks(
+    pool,
+    rows.map((row) => row.gateway_id),
+    clockSkewThresholdMs,
   )
+  return rows.map((row) => ({
+    gatewayId: row.gateway_id,
+    lastSeenAt: row.last_seen_at.toISOString(),
+    stale: row.stale,
+    clock: clocks.get(row.gateway_id) ?? NO_READINGS,
+  }))
 }
 
 /**

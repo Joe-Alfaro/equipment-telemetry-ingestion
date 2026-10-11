@@ -62,7 +62,7 @@ describe('claimDevice', () => {
     expect(await storedDevices(pool(), 'claim-unknown')).toEqual([])
   })
 
-  it.fails('registers an unregistered device and keeps its history and current state', async () => {
+  it('registers an unregistered device and keeps its history and current state', async () => {
     await seedDevice('claim-first')
     const historyBefore = await storedReadings(pool(), 'claim-first')
     const stateBefore = await storedCurrentState(pool(), 'claim-first')
