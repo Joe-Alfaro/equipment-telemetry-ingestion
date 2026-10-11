@@ -5,6 +5,7 @@ Postgres while keeping each device's history duplicate-free and its current stat
 by `event_time`. A React dashboard shows live equipment state and lets you claim new devices.
 
 - [DESIGN.md](DESIGN.md): the problem, the late-data decision, the trace for `--seed joe-alfaro`
+- [TRACE.md](TRACE.md): the full hand trace, the timing derivation, and actual vs predicted
 - [CUTS.md](CUTS.md): what was deliberately left out
 - [AI_USAGE.md](AI_USAGE.md): how AI tools were used and how their claims were checked
 
@@ -76,8 +77,9 @@ python3 telemetry_generator.py --target http://localhost:8080 --scenario trace -
 
 It prints the sequence and waits for Enter before sending (add `--yes` to skip the
 prompt). It reports device `trace-device-2493` through gateways `gw-a-joe-alfaro` and
-`gw-b-joe-alfaro`. The hand trace and the actual result are in
-[DESIGN.md](DESIGN.md#trace---seed-joe-alfaro).
+`gw-b-joe-alfaro`. The summary is in
+[DESIGN.md](DESIGN.md#trace---seed-joe-alfaro), and the full hand trace with the actual
+result is in [TRACE.md](TRACE.md).
 
 ### Checking the invariants in SQL
 

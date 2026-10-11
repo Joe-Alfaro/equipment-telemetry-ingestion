@@ -1,7 +1,8 @@
 # AI usage
 
 Almost all of the code and docs in this repo were written by AI agents. The human set the
-requirements, made the design calls, and merges every branch. This file describes the
+requirements and the process, made or accepted the key design calls, and merges the
+branches. This file describes the
 setup, the split of work, and how the agents' claims were checked.
 
 ## Tools
@@ -34,17 +35,29 @@ setup, the split of work, and how the agents' claims were checked.
   it had to raise that with the orchestrator, not edit the test. One contract change (the
   dedup key gaining `event_time`) went through that route: a new red test came first,
   then the implementation.
-- **Workers stacked branches** and pushed only their own branch. They never pushed to or
-  merged into `main`.
+- **Workers stacked branches** and pushed only their own branch. One exception: the
+  phase 1 skeleton was fast-forwarded to `main` by a worker after the orchestrator
+  reviewed it, before merging was reserved for the human. Since then, no agent has
+  pushed to or merged into `main`.
 
 ## The human's role
 
-- Wrote the requirements: the PRD derived from the project brief, and the stack choice
-  (TypeScript, Postgres, React, Vitest, Testing Library, npm workspaces).
-- Made or approved the design decisions, recorded in a running decisions log: the broker,
-  the dedup key and its later amendment, the late-data policy, the trace seed.
-- Set the process: TDD split, orchestrator review of every branch, GitLab only.
-- Merges every branch into `main`. Agents cannot.
+- Wrote the requirements: the PRD derived from the project brief.
+- Accepted the stack the orchestrator proposed (TypeScript, Postgres, React, Vitest,
+  Testing Library, npm workspaces).
+- Chose the trace seed and GitLab as the host.
+- Set the process: TDD split, orchestrator review of every branch, merges reserved for
+  the human.
+- Merges the branches into `main`.
+
+Design decisions are recorded in a running decisions log, with their status:
+
+- **Delegated to the orchestrator.** The human handed the broker choice to the
+  orchestrator, which picked RabbitMQ over Redpanda and Kafka.
+- **Pending the human's review.** The orchestrator made or proposed the original dedup
+  key and its amendment to include `event_time`, and the late-data policy ("never wait,
+  never drop, flag"), during an unattended overnight run. They are implemented and tested,
+  but the human has not yet signed off on them.
 
 ## How claims were verified
 
