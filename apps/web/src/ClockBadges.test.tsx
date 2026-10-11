@@ -53,32 +53,29 @@ describe('clock warning badges (rule 6)', () => {
     expect(within(boiler).queryByText(ANY_CLOCK_BADGE)).not.toBeInTheDocument()
   })
 
-  it.fails(
-    'shows the badges on drawer cards too, in seconds under a minute and for negative offsets',
-    async () => {
-      installFakeApi({
-        devices: [
-          unregisteredDevice('dev-5', {
-            gateways: ['gw-chi', 'gw-skew'],
-            clockWarnings: [ahead('gw-skew', 45_000), localTime('gw-chi', -18_000_000)],
-          }),
-          unregisteredDevice('dev-6', { clockWarnings: [] }),
-        ],
-      })
-      const { user } = renderApp()
-      const drawer = await openNewDevices(user)
-      const warned = await within(drawer).findByRole('article', { name: 'dev-5' })
-      const clean = within(drawer).getByRole('article', { name: 'dev-6' })
+  it('shows the badges on drawer cards too, in seconds under a minute and for negative offsets', async () => {
+    installFakeApi({
+      devices: [
+        unregisteredDevice('dev-5', {
+          gateways: ['gw-chi', 'gw-skew'],
+          clockWarnings: [ahead('gw-skew', 45_000), localTime('gw-chi', -18_000_000)],
+        }),
+        unregisteredDevice('dev-6', { clockWarnings: [] }),
+      ],
+    })
+    const { user } = renderApp()
+    const drawer = await openNewDevices(user)
+    const warned = await within(drawer).findByRole('article', { name: 'dev-5' })
+    const clean = within(drawer).getByRole('article', { name: 'dev-6' })
 
-      expect(within(warned).getByText('Clock ahead ~45s')).toHaveAccessibleDescription(
-        expect.stringContaining('gw-skew'),
-      )
-      expect(within(warned).getByText(/^Local time\? UTC[−-]5$/)).toHaveAccessibleDescription(
-        expect.stringContaining('gw-chi'),
-      )
-      expect(within(clean).queryByText(ANY_CLOCK_BADGE)).not.toBeInTheDocument()
-    },
-  )
+    expect(within(warned).getByText('Clock ahead ~45s')).toHaveAccessibleDescription(
+      expect.stringContaining('gw-skew'),
+    )
+    expect(within(warned).getByText(/^Local time\? UTC[−-]5$/)).toHaveAccessibleDescription(
+      expect.stringContaining('gw-chi'),
+    )
+    expect(within(clean).queryByText(ANY_CLOCK_BADGE)).not.toBeInTheDocument()
+  })
 
   it.each([
     ['Clock ahead ~59s', ahead('gw-x', 59_000)],

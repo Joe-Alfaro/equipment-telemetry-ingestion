@@ -1,11 +1,14 @@
 import type { DeviceSummary, StreamEvent } from '@telemetry/shared'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { devicesUrl, fetchDevices } from './api'
 import { Board } from './Board'
-import type { SelectedDevice } from './DeviceDetail'
-import { DeviceDetail } from './DeviceDetail'
+import { HistoryPage } from './HistoryPage'
 import { Inbox } from './Inbox'
+import { NewDevicesButton, NewDevicesDrawer } from './NewDevicesDrawer'
+import { devicePath, matchDevicePath, navigate, usePathname } from './router'
 import type { StreamStatus } from './useEventStream'
 import { useEventStream } from './useEventStream'
+import { useFetch } from './useFetch'
 
 const STATUS_TEXT: Record<StreamStatus, string> = {
   connecting: 'Connecting…',
@@ -19,10 +22,14 @@ function concernsDevice(event: StreamEvent, deviceId: string) {
 
 export function App() {
   // Bumping a version refetches that data. There is no single-device GET, so any device event
-  // refreshes both lists (they're small), and the open detail only when the event concerns it.
+  // refreshes the lists (they're small), and the open history only when the event concerns it.
   const [listVersion, setListVersion] = useState(0)
   const [detailVersion, setDetailVersion] = useState(0)
-  const [selected, setSelected] = useState<SelectedDevice | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const newDevicesButtonRef = useRef<HTMLButtonElement>(null)
+  const deviceId = matchDevicePath(usePathname())
+  // Fetched here rather than in the drawer: the header badge needs the count on every page.
+  const unregistered = useFetch(devicesUrl('unregistered'), listVersion, fetchDevices)
 
   function refreshLists() {
     setListVersion((version) => version + 1)
@@ -31,7 +38,7 @@ export function App() {
   const streamStatus = useEventStream({
     onEvents(events) {
       refreshLists()
-      if (selected && events.some((event) => concernsDevice(event, selected.deviceId))) {
+      if (deviceId !== null && events.some((event) => concernsDevice(event, deviceId))) {
         setDetailVersion((version) => version + 1)
       }
     },
@@ -41,28 +48,47 @@ export function App() {
     },
   })
 
+  function closeDrawer() {
+    setDrawerOpen(false)
+    newDevicesButtonRef.current?.focus()
+  }
+
   function viewHistory(device: DeviceSummary) {
-    setSelected({ deviceId: device.deviceId, name: device.name ?? device.deviceId })
+    // Focus moves to the history page's heading, not back to the header button.
+    setDrawerOpen(false)
+    navigate(devicePath(device.deviceId))
   }
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>Equipment telemetry</h1>
-        <p className={`stream-status stream-${streamStatus}`}>{STATUS_TEXT[streamStatus]}</p>
+        <div className="app-header-actions">
+          <p className={`stream-status stream-${streamStatus}`}>{STATUS_TEXT[streamStatus]}</p>
+          <NewDevicesButton
+            ref={newDevicesButtonRef}
+            count={unregistered.data?.length}
+            expanded={drawerOpen}
+            onClick={() => setDrawerOpen(true)}
+          />
+        </div>
       </header>
-      <main className="layout">
-        <Board version={listVersion} onViewHistory={viewHistory} />
-        <Inbox version={listVersion} onClaimSettled={refreshLists} onViewHistory={viewHistory} />
-        {selected && (
-          <DeviceDetail
-            key={selected.deviceId}
-            device={selected}
-            version={detailVersion}
-            onClose={() => setSelected(null)}
+      <main>
+        {deviceId === null && <Board version={listVersion} onViewHistory={viewHistory} />}
+        {deviceId !== null && (
+          <HistoryPage
+            key={deviceId}
+            deviceId={deviceId}
+            listVersion={listVersion}
+            detailVersion={detailVersion}
           />
         )}
       </main>
+      {drawerOpen && (
+        <NewDevicesDrawer onClose={closeDrawer}>
+          <Inbox devices={unregistered} onClaimSettled={refreshLists} onViewHistory={viewHistory} />
+        </NewDevicesDrawer>
+      )}
     </div>
   )
 }

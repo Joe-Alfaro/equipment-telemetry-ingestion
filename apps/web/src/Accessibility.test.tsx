@@ -4,7 +4,7 @@ import { installFakeApi, registeredDevice, unregisteredDevice } from './test/fak
 import { findHistoryPage, findRegion, openNewDevices, renderApp } from './test/renderApp'
 
 describe('accessible structure', () => {
-  it.fails('labels each area with a heading', async () => {
+  it('labels each area with a heading', async () => {
     installFakeApi()
     const { user } = renderApp()
 
@@ -16,7 +16,7 @@ describe('accessible structure', () => {
     ).toBeInTheDocument()
   })
 
-  it.fails('gives every control an accessible name', async () => {
+  it('gives every control an accessible name', async () => {
     installFakeApi({
       devices: [
         registeredDevice('dev-1', 'Chiller 1'),

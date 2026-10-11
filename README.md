@@ -78,16 +78,28 @@ python3 telemetry_generator.py --target http://localhost:8080 --scenario replay
 python3 telemetry_generator.py --target http://localhost:8080 --scenario race
 ```
 
-- **clean**: 3 gateways × 5 devices × 10 readings. All 5 devices appear in **New devices**.
+- **clean**: 3 gateways × 5 devices × 10 readings. All 5 devices appear under **New devices**.
 - **replay**: gw-1 replays a 20-reading backlog (with 5 byte-identical resends) while gw-0
   sends live data. The device ends with exactly 40 readings, and current state is the
   newest reading per metric.
 - **race**: two gateways report the same new device at the same moment. It is registered
   once, and both readings are kept.
 
-New devices land in the **New devices** inbox. Type a name and press **Claim** to move a
-device onto the **Equipment** board. **View history** on a board or inbox card opens the reading
-history with its `Late`, `Out of order` and `Future timestamp` flags.
+### Using the dashboard
+
+- **Equipment board** (`/`): registered devices with their current value per metric.
+- **New devices** (header button, on every page): its badge counts the unregistered devices
+  waiting and updates live. It opens a drawer from the right with one card per new device.
+  Type a name and press **Claim** to move a device onto the board. The drawer closes with
+  **Close**, Escape or a click on the backdrop.
+- **History page** (`/devices/<deviceId>`): **View history** on a board or drawer card opens it.
+  It shows the device's status (Registered or Unregistered), its current values, the
+  "Possibly behind" and clock badges, and the reading history with its `Late`,
+  `Out of order` and `Future timestamp` flags. It updates live. The URL can be bookmarked or
+  refreshed, the browser back button returns to the board, and an unknown ID shows
+  "Device not found".
+- The layout works down to phone widths: the drawer goes full width, and the history table
+  scrolls sideways.
 
 ### The trace (seed `Joe-Alfaro`)
 
@@ -134,8 +146,9 @@ SELECT (SELECT count(DISTINCT device_id) FROM readings) AS seen,
 
 | Method and path                                | Returns                                                                   |
 | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `GET /api/devices`                             | Every device; the history page finds its device here                      |
 | `GET /api/devices?status=registered`           | Board devices with current value per metric and `clockWarnings`           |
-| `GET /api/devices?status=unregistered`         | Inbox devices                                                             |
+| `GET /api/devices?status=unregistered`         | New devices (header badge and drawer)                                     |
 | `GET /api/devices/:deviceId/readings`          | Full history ordered by `event_time`, with `late`, `outOfOrder`, `future` |
 | `POST /api/devices/:deviceId/claim` `{"name"}` | 200 on the first claim, 409 if already claimed, 404 if unknown            |
 | `GET /api/gateways`                            | `lastSeenAt`, `stale` and `clock` per gateway                             |
@@ -155,7 +168,7 @@ skew = `event_time` − `received_at`:
 
 Each device's `clockWarnings` is `{ gatewayId, status, offsetMs }[]`, one entry for each
 gateway that reported the device and is `ahead` or `local-time`. It's `[]` when there are none.
-The board and inbox cards show one badge per warning, for example "Clock ahead ~2m" or
+The board cards, drawer cards and history page show one badge per warning, for example "Clock ahead ~2m" or
 "Local time? UTC+5:30". Stored timestamps are never rewritten.
 
 ## Deployment (optional extra)

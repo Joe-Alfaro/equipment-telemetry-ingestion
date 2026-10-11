@@ -6,7 +6,7 @@ import { findHistoryPage, openNewDevices, renderApp } from './test/renderApp'
 // Decided rule 6: new-device cards (now in the drawer) show "Possibly behind" and open the same
 // history page as the board.
 describe('New devices drawer: staleness and history', () => {
-  it.fails('badges an unregistered device as possibly behind only when it is', async () => {
+  it('badges an unregistered device as possibly behind only when it is', async () => {
     installFakeApi({
       devices: [
         unregisteredDevice('dev-2', { possiblyBehind: true }),
@@ -23,7 +23,7 @@ describe('New devices drawer: staleness and history', () => {
     expect(within(current).queryByText(/^possibly behind$/i)).not.toBeInTheDocument()
   })
 
-  it.fails('opens the history page with its reading history from a drawer card', async () => {
+  it('opens the history page with its reading history from a drawer card', async () => {
     installFakeApi({
       devices: [unregisteredDevice('dev-2'), unregisteredDevice('dev-4')],
       readings: [

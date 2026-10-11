@@ -1,23 +1,23 @@
 import type { DeviceSummary } from '@telemetry/shared'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { claimDevice, devicesUrl, fetchDevices } from './api'
+import { claimDevice } from './api'
 import { PossiblyBehindBadge } from './Board'
 import { ClockBadges } from './ClockBadges'
 import { formatTimestamp } from './format'
-import { useFetch } from './useFetch'
+import type { FetchResult } from './useFetch'
 
 interface InboxProps {
-  version: number
+  /** The unregistered devices. App fetches them once for both the header badge and this list. */
+  devices: FetchResult<DeviceSummary[]>
   /** A claim settled (either way), so both lists need a refresh. */
   onClaimSettled(): void
   onViewHistory(device: DeviceSummary): void
 }
 
-/** Unregistered devices that have started reporting, each with a Claim form. */
-export function Inbox({ version, onClaimSettled, onViewHistory }: InboxProps) {
-  const headingId = useId()
-  const { data, failed, loading } = useFetch(devicesUrl('unregistered'), version, fetchDevices)
+/** Unregistered devices that have started reporting, each with a Claim form (drawer content). */
+export function Inbox({ devices, onClaimSettled, onViewHistory }: InboxProps) {
+  const { data, failed, loading } = devices
   const [notice, setNotice] = useState<string | null>(null)
 
   function handleClaimed() {
@@ -32,8 +32,7 @@ export function Inbox({ version, onClaimSettled, onViewHistory }: InboxProps) {
   }
 
   return (
-    <section aria-labelledby={headingId} className="panel">
-      <h2 id={headingId}>New devices</h2>
+    <>
       {notice && (
         <p role="alert" className="notice">
           {notice}
@@ -60,7 +59,7 @@ export function Inbox({ version, onClaimSettled, onViewHistory }: InboxProps) {
           ))}
         </ul>
       )}
-    </section>
+    </>
   )
 }
 

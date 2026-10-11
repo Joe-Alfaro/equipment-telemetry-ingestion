@@ -35,7 +35,7 @@ What was deliberately left out, and why. Each item says what breaks and what wou
 
 - **Every first-seen device starts unregistered.** The system has no catalogue of known
   equipment, so the generator's `known-device-*` IDs (which get a fresh tag each run) all
-  land in the **New devices** inbox. A real deployment would import the commissioning
+  land in the **New devices** drawer. A real deployment would import the commissioning
   equipment list and pre-register those IDs.
 - **No auth.** Anyone who can reach the api can ingest readings or claim devices.
   Gateways would need per-gateway credentials, and the dashboard would need user accounts

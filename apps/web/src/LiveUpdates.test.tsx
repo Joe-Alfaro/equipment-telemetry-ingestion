@@ -58,7 +58,7 @@ describe('live updates over SSE', () => {
     expect(within(updated).queryByText('21.5')).not.toBeInTheDocument()
   })
 
-  it.fails('adds a device to the open New devices drawer on device-discovered', async () => {
+  it('adds a device to the open New devices drawer on device-discovered', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const drawer = await openNewDevices(user)
@@ -71,7 +71,7 @@ describe('live updates over SSE', () => {
     expect(within(discovered).getByText(/gw-4/)).toBeInTheDocument()
   })
 
-  it.fails('moves a device claimed in another tab to the board on device-claimed', async () => {
+  it('moves a device claimed in another tab to the board on device-claimed', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const drawer = await openNewDevices(user)
@@ -114,7 +114,7 @@ describe('live updates over SSE', () => {
     )
   })
 
-  it.fails('refreshes the open history page on device-updated', async () => {
+  it('refreshes the open history page on device-updated', async () => {
     const api = installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1')],
       readings: [reading({ deviceId: 'dev-1', sequence: 1, value: 20.1 })],

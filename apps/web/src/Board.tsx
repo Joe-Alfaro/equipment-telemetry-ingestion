@@ -2,7 +2,7 @@ import type { DeviceSummary } from '@telemetry/shared'
 import { useId } from 'react'
 import { devicesUrl, fetchDevices } from './api'
 import { ClockBadges } from './ClockBadges'
-import { formatTimestamp } from './format'
+import { MetricList } from './MetricList'
 import { useFetch } from './useFetch'
 
 interface BoardProps {
@@ -24,7 +24,7 @@ export function Board({ version, onViewHistory }: BoardProps) {
           Could not load equipment.
         </p>
       )}
-      {data?.length === 0 && <p className="muted">No equipment yet. Claim a new device below.</p>}
+      {data?.length === 0 && <p className="muted">No equipment yet. Claim one from New devices.</p>}
       {data && data.length > 0 && (
         <ul className="cards">
           {data.map((device) => (
@@ -56,7 +56,6 @@ interface DeviceCardProps {
 
 function DeviceCard({ device, onViewHistory }: DeviceCardProps) {
   const headingId = useId()
-  const metrics = Object.entries(device.metrics).sort(([a], [b]) => a.localeCompare(b))
 
   return (
     <article aria-labelledby={headingId} className="card">
@@ -66,22 +65,7 @@ function DeviceCard({ device, onViewHistory }: DeviceCardProps) {
       </header>
       <ClockBadges warnings={device.clockWarnings} />
       <p className="muted small">{device.deviceId}</p>
-      {metrics.length === 0 && <p className="muted">No metrics reported yet.</p>}
-      {metrics.length > 0 && (
-        <dl className="metrics">
-          {metrics.map(([name, state]) => (
-            <div key={name} className="metric">
-              <dt>{name}</dt>
-              <dd>
-                <span className="metric-value">{state.value}</span>
-                <span className="muted small">
-                  as of <time dateTime={state.eventTime}>{formatTimestamp(state.eventTime)}</time>
-                </span>
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
+      <MetricList metrics={device.metrics} />
       <button type="button" aria-describedby={headingId} onClick={() => onViewHistory(device)}>
         View history
       </button>

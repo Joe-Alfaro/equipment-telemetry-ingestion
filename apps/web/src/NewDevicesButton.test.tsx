@@ -7,26 +7,23 @@ import { renderApp } from './test/renderApp'
 // UI rule 1: a "New devices" button in the page header, with a live count badge.
 
 describe('header "New devices" button (UI rule 1)', () => {
-  it.fails(
-    'shows a count badge and names the count when unregistered devices are waiting',
-    async () => {
-      installFakeApi({
-        devices: [
-          unregisteredDevice('dev-2'),
-          unregisteredDevice('dev-4'),
-          unregisteredDevice('dev-5'),
-          registeredDevice('dev-1', 'Chiller 1'),
-        ],
-      })
-      renderApp()
+  it('shows a count badge and names the count when unregistered devices are waiting', async () => {
+    installFakeApi({
+      devices: [
+        unregisteredDevice('dev-2'),
+        unregisteredDevice('dev-4'),
+        unregisteredDevice('dev-5'),
+        registeredDevice('dev-1', 'Chiller 1'),
+      ],
+    })
+    renderApp()
 
-      const button = await screen.findByRole('button', { name: 'New devices, 3 waiting' })
+    const button = await screen.findByRole('button', { name: 'New devices, 3 waiting' })
 
-      expect(within(button).getByText('3')).toBeInTheDocument()
-    },
-  )
+    expect(within(button).getByText('3')).toBeInTheDocument()
+  })
 
-  it.fails('has no badge and is named just "New devices" when nothing is waiting', async () => {
+  it('has no badge and is named just "New devices" when nothing is waiting', async () => {
     const api = installFakeApi({ devices: [registeredDevice('dev-1', 'Chiller 1')] })
     renderApp()
     await screen.findByRole('article', { name: 'Chiller 1' })
@@ -42,7 +39,7 @@ describe('header "New devices" button (UI rule 1)', () => {
     expect(within(button).queryByText(/\d/)).not.toBeInTheDocument()
   })
 
-  it.fails('updates the count live when a device is discovered or claimed elsewhere', async () => {
+  it('updates the count live when a device is discovered or claimed elsewhere', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     renderApp()
     await screen.findByRole('button', { name: 'New devices, 1 waiting' })
@@ -64,7 +61,7 @@ describe('header "New devices" button (UI rule 1)', () => {
     expect(within(empty).queryByText(/\d/)).not.toBeInTheDocument()
   })
 
-  it.fails('is in the header on the history page too', async () => {
+  it('is in the header on the history page too', async () => {
     installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1'), unregisteredDevice('dev-2')],
     })

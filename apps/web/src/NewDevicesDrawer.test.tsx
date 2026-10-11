@@ -10,7 +10,7 @@ import { findNewDevicesButton, findRegion, openNewDevices, renderApp } from './t
 const fastClock: ClockWarning = { gatewayId: 'gw-fast', status: 'ahead', offsetMs: 120_000 }
 
 describe('"New devices" drawer (UI rule 2)', () => {
-  it.fails('opens a modal dialog with a card per unregistered device', async () => {
+  it('opens a modal dialog with a card per unregistered device', async () => {
     installFakeApi({
       devices: [
         unregisteredDevice('dev-2', { possiblyBehind: true, clockWarnings: [fastClock] }),
@@ -35,7 +35,7 @@ describe('"New devices" drawer (UI rule 2)', () => {
     expect(within(drawer).queryByText('Chiller 1')).not.toBeInTheDocument()
   })
 
-  it.fails('closes with the Close button and returns focus to the header button', async () => {
+  it('closes with the Close button and returns focus to the header button', async () => {
     installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const button = await findNewDevicesButton()
@@ -47,7 +47,7 @@ describe('"New devices" drawer (UI rule 2)', () => {
     expect(button).toHaveFocus()
   })
 
-  it.fails('closes with Escape and returns focus to the header button', async () => {
+  it('closes with Escape and returns focus to the header button', async () => {
     installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const button = await findNewDevicesButton()
@@ -59,25 +59,22 @@ describe('"New devices" drawer (UI rule 2)', () => {
     expect(button).toHaveFocus()
   })
 
-  it.fails(
-    'closes on a click outside the drawer and returns focus to the header button',
-    async () => {
-      installFakeApi({ devices: [unregisteredDevice('dev-2')] })
-      const { user } = renderApp()
-      const button = await findNewDevicesButton()
+  it('closes on a click outside the drawer and returns focus to the header button', async () => {
+    installFakeApi({ devices: [unregisteredDevice('dev-2')] })
+    const { user } = renderApp()
+    const button = await findNewDevicesButton()
 
-      const drawer = await openNewDevices(user)
-      // A click inside does not close it.
-      await user.click(await within(drawer).findByRole('article', { name: 'dev-2' }))
-      expect(screen.getByRole('dialog', { name: 'New devices' })).toBeInTheDocument()
-      await user.click(document.body)
+    const drawer = await openNewDevices(user)
+    // A click inside does not close it.
+    await user.click(await within(drawer).findByRole('article', { name: 'dev-2' }))
+    expect(screen.getByRole('dialog', { name: 'New devices' })).toBeInTheDocument()
+    await user.click(document.body)
 
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      expect(button).toHaveFocus()
-    },
-  )
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(button).toHaveFocus()
+  })
 
-  it.fails('removes a claimed card and decrements the badge', async () => {
+  it('removes a claimed card and decrements the badge', async () => {
     installFakeApi({ devices: [unregisteredDevice('dev-2'), unregisteredDevice('dev-4')] })
     const { user } = renderApp()
     const board = await findRegion('Equipment')
@@ -102,7 +99,7 @@ describe('"New devices" drawer (UI rule 2)', () => {
     ).toBeInTheDocument()
   })
 
-  it.fails('says "No new devices" when there are none', async () => {
+  it('says "No new devices" when there are none', async () => {
     installFakeApi({ devices: [registeredDevice('dev-1', 'Chiller 1')] })
     const { user } = renderApp()
 
@@ -114,7 +111,7 @@ describe('"New devices" drawer (UI rule 2)', () => {
 })
 
 describe('board without the inline inbox (UI rules 3 and 5)', () => {
-  it.fails('shows only the Equipment region on the main page', async () => {
+  it('shows only the Equipment region on the main page', async () => {
     installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1'), unregisteredDevice('dev-2')],
     })

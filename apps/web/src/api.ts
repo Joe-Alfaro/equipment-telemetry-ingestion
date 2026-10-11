@@ -17,8 +17,9 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await response.json()) as T
 }
 
-export function devicesUrl(status: DeviceStatus) {
-  return `/api/devices?status=${status}`
+/** GET /api/devices, filtered by status when one is given. */
+export function devicesUrl(status?: DeviceStatus) {
+  return status ? `/api/devices?status=${status}` : '/api/devices'
 }
 
 export function readingsUrl(deviceId: string) {
