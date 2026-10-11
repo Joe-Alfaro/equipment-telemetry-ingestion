@@ -53,7 +53,7 @@ export function App() {
       </header>
       <main className="layout">
         <Board version={listVersion} onViewHistory={viewHistory} />
-        <Inbox version={listVersion} onClaimSettled={refreshLists} />
+        <Inbox version={listVersion} onClaimSettled={refreshLists} onViewHistory={viewHistory} />
         {selected && (
           <DeviceDetail
             key={selected.deviceId}

@@ -37,6 +37,17 @@ export function Board({ version, onViewHistory }: BoardProps) {
   )
 }
 
+export function PossiblyBehindBadge() {
+  return (
+    <span
+      className="badge badge-warning"
+      title="A gateway reporting this device has gone quiet, so newer readings may still arrive."
+    >
+      Possibly behind
+    </span>
+  )
+}
+
 interface DeviceCardProps {
   device: DeviceSummary
   onViewHistory(device: DeviceSummary): void
@@ -50,14 +61,7 @@ function DeviceCard({ device, onViewHistory }: DeviceCardProps) {
     <article aria-labelledby={headingId} className="card">
       <header className="card-header">
         <h3 id={headingId}>{device.name ?? device.deviceId}</h3>
-        {device.possiblyBehind && (
-          <span
-            className="badge badge-warning"
-            title="A gateway reporting this device has gone quiet, so newer readings may still arrive."
-          >
-            Possibly behind
-          </span>
-        )}
+        {device.possiblyBehind && <PossiblyBehindBadge />}
       </header>
       <p className="muted small">{device.deviceId}</p>
       {metrics.length === 0 && <p className="muted">No metrics reported yet.</p>}
