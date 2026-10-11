@@ -1,5 +1,9 @@
 # One Dockerfile, one target per service. TypeScript runs through tsx, so there is
 # no separate compile step for the Node services.
+#
+# docker compose selects a stage with `target:`. Platforms that can't pick a target
+# (Railway) build the final `selected` stage and pass SERVICE_TARGET as a build arg.
+ARG SERVICE_TARGET=api
 
 FROM node:22-alpine AS deps
 WORKDIR /app
@@ -33,5 +37,10 @@ FROM source AS web-build
 RUN npm run build -w @telemetry/web
 
 FROM nginx:1.27-alpine AS web
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# The entrypoint renders templates with envsubst; 15-local-resolvers fills NGINX_LOCAL_RESOLVERS.
+ENV API_UPSTREAM=http://api:8080
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
+
+FROM ${SERVICE_TARGET} AS selected

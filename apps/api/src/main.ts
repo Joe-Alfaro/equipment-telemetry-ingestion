@@ -29,4 +29,4 @@ async function shutdown(signal: string) {
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
 process.on('SIGINT', () => void shutdown('SIGINT'))
 
-await app.listen({ host: '0.0.0.0', port: config.port })
+await app.listen({ host: config.host, port: config.port })

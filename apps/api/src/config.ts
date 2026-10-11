@@ -1,4 +1,5 @@
 export interface ApiConfig {
+  host: string
   port: number
   databaseUrl: string
   amqpUrl: string
@@ -16,6 +17,8 @@ function required(name: string): string {
 
 export function loadConfig(): ApiConfig {
   return {
+    // Railway's private network may be IPv6-only; set HOST=:: there.
+    host: process.env.HOST ?? '0.0.0.0',
     port: Number(process.env.PORT ?? 8080),
     databaseUrl: required('DATABASE_URL'),
     amqpUrl: required('AMQP_URL'),
