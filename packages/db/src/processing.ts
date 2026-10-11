@@ -21,6 +21,8 @@ export interface ProcessOptions {
   /** Processing time: stored as readings.processed_at and current_state.updated_at. */
   now: Date
   lateThresholdMs: number
+  /** readings.future = event_time - now > futureSkewMs (strictly). Default 60000 (rule 4). */
+  futureSkewMs?: number
 }
 
 /*

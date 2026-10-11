@@ -196,6 +196,7 @@ describe('GET /api/devices/:deviceId/readings', () => {
         processedAt: isoAt(BASE, 40_000),
         late: true,
         outOfOrder: true,
+        future: false,
       },
       {
         gatewayId: 'gw-old',
@@ -208,10 +209,29 @@ describe('GET /api/devices/:deviceId/readings', () => {
         processedAt: isoAt(BASE, 40_000),
         late: true,
         outOfOrder: false,
+        future: false,
       },
     ]
     expect(response.statusCode).toBe(200)
     expect(response.json()).toStrictEqual(expected)
+  })
+
+  // Rule 4: future = event_time - processed_at > FUTURE_SKEW_MS (default 60000).
+  it.fails('exposes the future flag on each Reading', async () => {
+    await seed([
+      { device_id: 'skewed', sequence: 0, event_time: isoAt(BASE, 100_001) },
+      { device_id: 'skewed', sequence: 1, event_time: isoAt(BASE, 45_000) },
+    ])
+
+    const response = await app().inject({ method: 'GET', url: '/api/devices/skewed/readings' })
+
+    expect(response.statusCode).toBe(200)
+    expect(
+      (response.json() as Reading[]).map((reading) => [reading.sequence, reading.future]),
+    ).toEqual([
+      [1, false],
+      [0, true],
+    ])
   })
 
   it('returns 404 for an unknown device', async () => {

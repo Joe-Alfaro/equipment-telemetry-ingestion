@@ -67,6 +67,7 @@ export function reading(overrides: Partial<Reading> & Pick<Reading, 'deviceId'>)
     processedAt: '2026-10-10T11:59:00.300Z',
     late: false,
     outOfOrder: false,
+    future: false,
     ...overrides,
   }
 }

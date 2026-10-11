@@ -35,6 +35,8 @@ export interface Reading {
   processedAt: string
   late: boolean
   outOfOrder: boolean
+  /** event_time - processed_at > FUTURE_SKEW_MS (default 60000). Flag only. */
+  future: boolean
 }
 
 /** Body of POST /api/devices/:deviceId/claim. */

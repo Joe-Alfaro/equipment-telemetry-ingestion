@@ -164,6 +164,8 @@ export async function listReadings(pool: Pool, deviceId: string): Promise<Readin
     processedAt: row.processed_at.toISOString(),
     late: row.late,
     outOfOrder: row.out_of_order,
+    // TODO(F-AI): stub so the shared type compiles; read readings.future (rule 4).
+    future: false,
   }))
 }
 

@@ -21,7 +21,8 @@ import { startConsumer } from './consumer'
  *     consumes `queue` with manual acks.
  *   - Each decodable message is applied with processReading(pool, message, { now: now(), lateThresholdMs })
  *     and acked only AFTER that transaction commits. 'duplicate' and 'conflict' outcomes are acked too.
- *   - A processing error nacks with requeue (decision o).
+ *   - A processing error is classified and retried or dead-lettered per rule 3; see
+ *     consumer-errors.integration.test.ts (supersedes decision o's unbounded requeue).
  *   - An undecodable message (bad JSON or failing parseIngestReading) is routed to
  *     `${queue}.dead-letter` with its body byte-for-byte unchanged, and removed from `queue`.
  *     It is never silently dropped and never stored as a reading.

@@ -10,6 +10,14 @@ export interface ConsumerOptions {
   prefetch?: number
   now?: () => Date
   log?: Logger
+  /** Passed to processReading as futureSkewMs (rule 4). Default 60000. */
+  futureSkewMs?: number
+  /** Delay before a transient error (DB unreachable) is retried. Default about 1000 (rule 3). */
+  retryDelayMs?: number
+  /** Attempts for an unclassified error before dead-lettering. Default 5 (rule 3). */
+  maxAttempts?: number
+  /** Test seam: replaces processReading so tests can inject failures at the DB boundary. */
+  processReading?: typeof processReading
 }
 
 export interface RunningConsumer {
@@ -40,6 +48,7 @@ export async function startConsumer({
   prefetch = 20,
   now = () => new Date(),
   log = silentLog,
+  processReading: process = processReading,
 }: ConsumerOptions): Promise<RunningConsumer> {
   const channel = await connection.createConfirmChannel()
   // Without a listener an 'error' event (e.g. the connection dying) would crash the process.
@@ -60,7 +69,7 @@ export async function startConsumer({
   const handleMessage = createMessageHandler(
     channel,
     async (message) => {
-      await processReading(pool, message, { now: now(), lateThresholdMs })
+      await process(pool, message, { now: now(), lateThresholdMs })
     },
     log,
     deadLetter,

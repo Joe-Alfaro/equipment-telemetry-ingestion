@@ -274,6 +274,7 @@ describe('listReadings', () => {
         processedAt: isoAt(BASE, 6_100),
         late: true,
         outOfOrder: true,
+        future: false,
       },
       {
         gatewayId: 'gw-a',
@@ -286,6 +287,7 @@ describe('listReadings', () => {
         processedAt: isoAt(BASE, 7_100),
         late: false,
         outOfOrder: false,
+        future: false,
       },
       {
         gatewayId: 'gw-a',
@@ -298,6 +300,7 @@ describe('listReadings', () => {
         processedAt: isoAt(BASE, 5_200),
         late: false,
         outOfOrder: false,
+        future: false,
       },
     ]
     expect(readings).toStrictEqual(expected)
