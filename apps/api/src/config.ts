@@ -3,6 +3,7 @@ export interface ApiConfig {
   databaseUrl: string
   amqpUrl: string
   readingsQueue: string
+  lateThresholdMs: number
 }
 
 function required(name: string): string {
@@ -19,5 +20,6 @@ export function loadConfig(): ApiConfig {
     databaseUrl: required('DATABASE_URL'),
     amqpUrl: required('AMQP_URL'),
     readingsQueue: process.env.READINGS_QUEUE ?? 'readings',
+    lateThresholdMs: Number(process.env.LATE_THRESHOLD_MS ?? 30_000),
   }
 }

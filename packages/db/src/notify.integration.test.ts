@@ -99,7 +99,7 @@ afterAll(async () => {
 })
 
 describe('NOTIFY telemetry_events', () => {
-  it.fails('a new device emits device-discovered, device-updated and gateway-updated', async () => {
+  it('a new device emits device-discovered, device-updated and gateway-updated', async () => {
     const events = await eventsFrom(() => apply({ gateway_id: 'gw-n', device_id: 'n-new' }))
 
     expect(events).toEqual([
@@ -109,23 +109,20 @@ describe('NOTIFY telemetry_events', () => {
     ])
   })
 
-  it.fails(
-    'a new reading for a known device, even out of order, emits device-updated and gateway-updated',
-    async () => {
-      await apply({ device_id: 'n-known', sequence: 0, event_time: isoAt(BASE, 5_000) })
+  it('a new reading for a known device, even out of order, emits device-updated and gateway-updated', async () => {
+    await apply({ device_id: 'n-known', sequence: 0, event_time: isoAt(BASE, 5_000) })
 
-      const events = await eventsFrom(() =>
-        apply({ device_id: 'n-known', sequence: 1, event_time: isoAt(BASE, 1_000) }),
-      )
+    const events = await eventsFrom(() =>
+      apply({ device_id: 'n-known', sequence: 1, event_time: isoAt(BASE, 1_000) }),
+    )
 
-      expect(events).toEqual([
-        { event: 'device-updated', data: { deviceId: 'n-known' } },
-        { event: 'gateway-updated', data: { gatewayId: 'gw-a' } },
-      ])
-    },
-  )
+    expect(events).toEqual([
+      { event: 'device-updated', data: { deviceId: 'n-known' } },
+      { event: 'gateway-updated', data: { gatewayId: 'gw-a' } },
+    ])
+  })
 
-  it.fails('a duplicate or a conflict emits gateway-updated only', async () => {
+  it('a duplicate or a conflict emits gateway-updated only', async () => {
     await apply({ device_id: 'n-dup', value: 1 })
 
     const duplicate = await eventsFrom(() => apply({ device_id: 'n-dup', value: 1 }))
@@ -135,19 +132,16 @@ describe('NOTIFY telemetry_events', () => {
     expect(conflict).toEqual([{ event: 'gateway-updated', data: { gatewayId: 'gw-a' } }])
   })
 
-  it.fails(
-    'a successful claim emits device-claimed; a repeat claim and an unknown device emit nothing',
-    async () => {
-      await apply({ device_id: 'n-claim' })
-      const options = { now: dateAt(BASE, 2_000), lateThresholdMs: 30_000 }
+  it('a successful claim emits device-claimed; a repeat claim and an unknown device emit nothing', async () => {
+    await apply({ device_id: 'n-claim' })
+    const options = { now: dateAt(BASE, 2_000), lateThresholdMs: 30_000 }
 
-      const first = await eventsFrom(() => claimDevice(pool(), 'n-claim', 'Fan', options))
-      const repeat = await eventsFrom(() => claimDevice(pool(), 'n-claim', 'Fan 2', options))
-      const unknown = await eventsFrom(() => claimDevice(pool(), 'n-missing', 'Fan', options))
+    const first = await eventsFrom(() => claimDevice(pool(), 'n-claim', 'Fan', options))
+    const repeat = await eventsFrom(() => claimDevice(pool(), 'n-claim', 'Fan 2', options))
+    const unknown = await eventsFrom(() => claimDevice(pool(), 'n-missing', 'Fan', options))
 
-      expect(first).toEqual([{ event: 'device-claimed', data: { deviceId: 'n-claim' } }])
-      expect(repeat).toEqual([])
-      expect(unknown).toEqual([])
-    },
-  )
+    expect(first).toEqual([{ event: 'device-claimed', data: { deviceId: 'n-claim' } }])
+    expect(repeat).toEqual([])
+    expect(unknown).toEqual([])
+  })
 })

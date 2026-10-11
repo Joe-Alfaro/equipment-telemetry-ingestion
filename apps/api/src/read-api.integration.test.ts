@@ -141,7 +141,7 @@ afterEach(async () => {
 })
 
 describe('GET /api/devices', () => {
-  it.fails('returns DeviceSummary[] JSON exactly matching the shared type', async () => {
+  it('returns DeviceSummary[] JSON exactly matching the shared type', async () => {
     await seedTwoDevices()
 
     const response = await app().inject({ method: 'GET', url: '/api/devices' })
@@ -151,7 +151,7 @@ describe('GET /api/devices', () => {
     expect(response.json()).toStrictEqual([AHU_1, PUMP_2])
   })
 
-  it.fails('filters by status', async () => {
+  it('filters by status', async () => {
     await seedTwoDevices()
     await app().inject({
       method: 'POST',
@@ -170,7 +170,7 @@ describe('GET /api/devices', () => {
     expect(unregistered.json()).toStrictEqual([AHU_1])
   })
 
-  it.fails('rejects an unknown status with 400', async () => {
+  it('rejects an unknown status with 400', async () => {
     const response = await app().inject({ method: 'GET', url: '/api/devices?status=archived' })
 
     expect(response.statusCode).toBe(400)
@@ -179,7 +179,7 @@ describe('GET /api/devices', () => {
 })
 
 describe('GET /api/devices/:deviceId/readings', () => {
-  it.fails('returns Reading[] JSON ordered by event_time with flags', async () => {
+  it('returns Reading[] JSON ordered by event_time with flags', async () => {
     await seedTwoDevices()
 
     const response = await app().inject({ method: 'GET', url: '/api/devices/ahu-1/readings' })
@@ -214,7 +214,7 @@ describe('GET /api/devices/:deviceId/readings', () => {
     expect(response.json()).toStrictEqual(expected)
   })
 
-  it.fails('returns 404 for an unknown device', async () => {
+  it('returns 404 for an unknown device', async () => {
     const response = await app().inject({ method: 'GET', url: '/api/devices/ghost/readings' })
 
     expect(response.statusCode).toBe(404)
@@ -223,55 +223,49 @@ describe('GET /api/devices/:deviceId/readings', () => {
 })
 
 describe('POST /api/devices/:deviceId/claim', () => {
-  it.fails(
-    'returns 200 with the registered DeviceSummary, then 409 with the unchanged summary',
-    async () => {
-      await seedTwoDevices()
+  it('returns 200 with the registered DeviceSummary, then 409 with the unchanged summary', async () => {
+    await seedTwoDevices()
 
-      const first = await app().inject({
-        method: 'POST',
-        url: '/api/devices/ahu-1/claim',
-        payload: { name: 'AHU 1' },
-      })
-      const second = await app().inject({
-        method: 'POST',
-        url: '/api/devices/ahu-1/claim',
-        payload: { name: 'Other' },
-      })
+    const first = await app().inject({
+      method: 'POST',
+      url: '/api/devices/ahu-1/claim',
+      payload: { name: 'AHU 1' },
+    })
+    const second = await app().inject({
+      method: 'POST',
+      url: '/api/devices/ahu-1/claim',
+      payload: { name: 'Other' },
+    })
 
-      const claimed: DeviceSummary = { ...AHU_1, status: 'registered', name: 'AHU 1' }
-      expect(first.statusCode).toBe(200)
-      expect(first.json()).toStrictEqual(claimed)
-      expect(second.statusCode).toBe(409)
-      expect(second.json()).toStrictEqual(claimed)
-    },
-  )
+    const claimed: DeviceSummary = { ...AHU_1, status: 'registered', name: 'AHU 1' }
+    expect(first.statusCode).toBe(200)
+    expect(first.json()).toStrictEqual(claimed)
+    expect(second.statusCode).toBe(409)
+    expect(second.json()).toStrictEqual(claimed)
+  })
 
-  it.fails(
-    '8 concurrent claims: exactly one 200, seven 409, all reporting the same name',
-    async () => {
-      await seedTwoDevices()
-      const server = app()
+  it('8 concurrent claims: exactly one 200, seven 409, all reporting the same name', async () => {
+    await seedTwoDevices()
+    const server = app()
 
-      const responses = await Promise.all(
-        Array.from({ length: 8 }, (_, i) =>
-          server.inject({
-            method: 'POST',
-            url: '/api/devices/pump-2/claim',
-            payload: { name: `Pump ${i}` },
-          }),
-        ),
-      )
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        server.inject({
+          method: 'POST',
+          url: '/api/devices/pump-2/claim',
+          payload: { name: `Pump ${i}` },
+        }),
+      ),
+    )
 
-      expect(responses.map((r) => r.statusCode).sort()).toEqual([
-        200, 409, 409, 409, 409, 409, 409, 409,
-      ])
-      const names = new Set(responses.map((r) => r.json<DeviceSummary>().name))
-      expect(names.size).toBe(1)
-    },
-  )
+    expect(responses.map((r) => r.statusCode).sort()).toEqual([
+      200, 409, 409, 409, 409, 409, 409, 409,
+    ])
+    const names = new Set(responses.map((r) => r.json<DeviceSummary>().name))
+    expect(names.size).toBe(1)
+  })
 
-  it.fails('returns 404 for an unknown device', async () => {
+  it('returns 404 for an unknown device', async () => {
     const response = await app().inject({
       method: 'POST',
       url: '/api/devices/ghost/claim',
@@ -282,30 +276,27 @@ describe('POST /api/devices/:deviceId/claim', () => {
     expect(response.json()).toStrictEqual({ error: 'device not found' })
   })
 
-  it.fails(
-    'returns 400 unless name is a non-blank string, and does not register the device',
-    async () => {
-      await seedTwoDevices()
-      const server = app()
+  it('returns 400 unless name is a non-blank string, and does not register the device', async () => {
+    await seedTwoDevices()
+    const server = app()
 
-      const responses = await Promise.all(
-        [{}, { name: '' }, { name: '   ' }, { name: 42 }].map((payload) =>
-          server.inject({ method: 'POST', url: '/api/devices/ahu-1/claim', payload }),
-        ),
-      )
+    const responses = await Promise.all(
+      [{}, { name: '' }, { name: '   ' }, { name: 42 }].map((payload) =>
+        server.inject({ method: 'POST', url: '/api/devices/ahu-1/claim', payload }),
+      ),
+    )
 
-      expect(responses.map((r) => r.statusCode)).toEqual([400, 400, 400, 400])
-      const devices = await server.inject({
-        method: 'GET',
-        url: '/api/devices?status=unregistered',
-      })
-      expect(devices.json<DeviceSummary[]>().map((d) => d.deviceId)).toContain('ahu-1')
-    },
-  )
+    expect(responses.map((r) => r.statusCode)).toEqual([400, 400, 400, 400])
+    const devices = await server.inject({
+      method: 'GET',
+      url: '/api/devices?status=unregistered',
+    })
+    expect(devices.json<DeviceSummary[]>().map((d) => d.deviceId)).toContain('ahu-1')
+  })
 })
 
 describe('GET /api/gateways', () => {
-  it.fails('returns GatewaySummary[] with staleness relative to the injected clock', async () => {
+  it('returns GatewaySummary[] with staleness relative to the injected clock', async () => {
     await seedTwoDevices()
 
     const response = await app().inject({ method: 'GET', url: '/api/gateways' })

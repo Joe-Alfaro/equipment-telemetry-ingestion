@@ -1,4 +1,4 @@
-export { TELEMETRY_EVENTS_CHANNEL } from './events'
+export { notifyEvents, TELEMETRY_EVENTS_CHANNEL } from './events'
 export { listMigrations, migrate, MIGRATIONS_DIR, sortMigrationFiles } from './migrate'
 export { createPool } from './pool'
 export type { Pool, PoolClient } from './pool'

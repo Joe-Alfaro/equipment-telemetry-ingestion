@@ -39,16 +39,52 @@ export function decodeReadingMessage(content: Buffer): ReadingMessage | null {
   }
 }
 
+/** Republishes an undecodable message body, resolving once the broker has confirmed it. */
+export type DeadLetter = (content: Buffer) => Promise<void>
+
 /**
  * Builds the per-delivery callback. Ack happens only after `processReading` resolves,
- * which in phase 2 means after the Postgres transaction commits; a crash before
- * that leaves the message unacked and RabbitMQ redelivers it.
+ * i.e. after the Postgres transaction commits; a crash before that leaves the message
+ * unacked and RabbitMQ redelivers it. The returned promise never rejects.
  */
 export function createMessageHandler(
   channel: AckChannel,
   processReading: ProcessReading,
   log: Logger,
+  deadLetter?: DeadLetter,
 ) {
+  // ack/nack throw synchronously once the channel is closed (e.g. the connection died while a
+  // transaction was in flight). The message is then redelivered, so there is nothing to do.
+  function settle(action: 'ack' | 'nack', message: DeliveredMessage, requeue = false) {
+    try {
+      if (action === 'ack') {
+        channel.ack(message)
+        return
+      }
+      channel.nack(message, false, requeue)
+    } catch (error) {
+      log.error(`could not ${action} message; the broker will redeliver it`, error)
+    }
+  }
+
+  async function rejectUndecodable(message: DeliveredMessage) {
+    if (!deadLetter) {
+      log.error('dropping undecodable message', { content: message.content.toString('utf8') })
+      settle('nack', message)
+      return
+    }
+    try {
+      await deadLetter(message.content)
+      log.error('moved undecodable message to the dead-letter queue', {
+        content: message.content.toString('utf8'),
+      })
+      settle('ack', message)
+    } catch (error) {
+      log.error('failed to dead-letter undecodable message, requeueing', error)
+      settle('nack', message, true)
+    }
+  }
+
   return async function handleMessage(message: DeliveredMessage | null) {
     // amqplib delivers null when the broker cancels the consumer.
     if (!message) {
@@ -59,24 +95,17 @@ export function createMessageHandler(
     const decoded = decodeReadingMessage(message.content)
     if (!decoded) {
       // The api validates before publishing, so this is not a reading we can ever store.
-      log.error('dropping undecodable message', { content: message.content.toString('utf8') })
-      channel.nack(message, false, false)
+      await rejectUndecodable(message)
       return
     }
 
     try {
       await processReading(decoded)
-      channel.ack(message)
     } catch (error) {
       log.error('failed to process reading, requeueing', { error, reading: decoded.reading })
-      channel.nack(message, false, true)
+      settle('nack', message, true)
+      return
     }
-  }
-}
-
-/** Phase 1 placeholder: log only. Phase 2A replaces this with the transactional write. */
-export function createLoggingProcessor(log: Logger): ProcessReading {
-  return async (message) => {
-    log.info('received reading', message)
+    settle('ack', message)
   }
 }

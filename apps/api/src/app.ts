@@ -2,6 +2,8 @@ import type { Pool } from '@telemetry/db'
 import type { ReadingPublisher } from '@telemetry/broker'
 import { parseIngestReading, type ApiError } from '@telemetry/shared'
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify'
+import { registerReadApi } from './read-api'
+import { registerStream } from './stream'
 
 export interface AppDeps {
   publisher: ReadingPublisher
@@ -10,10 +12,19 @@ export interface AppDeps {
   now?: () => Date
   /** Gateway staleness threshold for the read API (`possiblyBehind`, `stale`). Default 30000. */
   lateThresholdMs?: number
+  /** Minimum interval between relayed gateway-updated events per gateway. Default 1000. */
+  gatewayEventIntervalMs?: number
   logger?: FastifyServerOptions['logger']
 }
 
-export function buildApp({ publisher, pool, now = () => new Date(), logger = false }: AppDeps) {
+export function buildApp({
+  publisher,
+  pool,
+  now = () => new Date(),
+  lateThresholdMs = 30_000,
+  gatewayEventIntervalMs = 1_000,
+  logger = false,
+}: AppDeps) {
   const app: FastifyInstance = Fastify({ logger })
 
   app.get('/healthz', async (_request, reply) => {
@@ -46,8 +57,10 @@ export function buildApp({ publisher, pool, now = () => new Date(), logger = fal
     return reply.code(202).send({ status: 'accepted' })
   })
 
-  // TODO(phase 2A): read API (/api/devices, /api/devices/:id/readings, claim, /api/gateways)
-  // and the SSE stream (/api/stream). Contract types live in @telemetry/shared.
+  if (pool) {
+    registerReadApi(app, { pool, now, lateThresholdMs })
+    registerStream(app, { pool, gatewayEventIntervalMs })
+  }
 
   return app
 }

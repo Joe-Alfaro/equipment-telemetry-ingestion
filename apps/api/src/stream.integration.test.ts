@@ -141,24 +141,21 @@ afterEach(async () => {
 })
 
 describe('GET /api/stream', () => {
-  it.fails(
-    'relays device-discovered, device-updated and gateway-updated after a reading commits',
-    async () => {
-      const stream = await openStream()
-      expect(stream.status).toBe(200)
-      expect(stream.contentType).toMatch(/^text\/event-stream/)
+  it('relays device-discovered, device-updated and gateway-updated after a reading commits', async () => {
+    const stream = await openStream()
+    expect(stream.status).toBe(200)
+    expect(stream.contentType).toMatch(/^text\/event-stream/)
 
-      await apply('s-new')
+    await apply('s-new')
 
-      expect(await waitForEvents(stream, 3)).toEqual([
-        { event: 'device-discovered', data: { deviceId: 's-new' } },
-        { event: 'device-updated', data: { deviceId: 's-new' } },
-        { event: 'gateway-updated', data: { gatewayId: 'gw-s' } },
-      ])
-    },
-  )
+    expect(await waitForEvents(stream, 3)).toEqual([
+      { event: 'device-discovered', data: { deviceId: 's-new' } },
+      { event: 'device-updated', data: { deviceId: 's-new' } },
+      { event: 'gateway-updated', data: { gatewayId: 'gw-s' } },
+    ])
+  })
 
-  it.fails('relays device-claimed after POST /api/devices/:id/claim', async () => {
+  it('relays device-claimed after POST /api/devices/:id/claim', async () => {
     await apply('s-claim')
     const stream = await openStream()
     expect(stream.status).toBe(200)
@@ -175,7 +172,7 @@ describe('GET /api/stream', () => {
     ])
   })
 
-  it.fails('delivers every event to every connected client', async () => {
+  it('delivers every event to every connected client', async () => {
     const streams = await Promise.all([openStream(), openStream()])
     expect(streams.map((s) => s.status)).toEqual([200, 200])
 

@@ -102,124 +102,115 @@ afterEach(async () => {
 })
 
 describe('consumer: broker -> processReading -> ack', () => {
-  it.fails(
-    'stores a published reading with the injected clock and acks it after commit',
-    async () => {
-      const now = new Date('2026-10-10T12:01:00.000Z')
-      const consumer = await startConsumer({
-        connection: broker().connection,
+  it('stores a published reading with the injected clock and acks it after commit', async () => {
+    const now = new Date('2026-10-10T12:01:00.000Z')
+    const consumer = await startConsumer({
+      connection: broker().connection,
+      pool: pool(),
+      queue: broker().queue,
+      lateThresholdMs: 30_000,
+      now: () => now,
+    })
+    const publisher = await createReadingPublisher(broker().connection, broker().queue)
+    await publisher.publish(
+      readingMessage({ device_id: 'c-e2e', event_time: '2026-10-10T12:00:00.000Z' }),
+    )
+
+    await eventually(
+      () => readingCount('c-e2e'),
+      (n) => n === 1,
+    )
+    await consumer.stop()
+    await publisher.close()
+
+    expect(await storedReadings(pool(), 'c-e2e')).toMatchObject([
+      { processed_at: micros(now.toISOString()), late: true },
+    ])
+    expect(await readyCount()).toBe(0)
+  })
+
+  it('does not ack before commit; a crash before ack redelivers without creating a duplicate', async () => {
+    const lock = await pool().connect()
+    const crashing = await connectBroker(TEST_AMQP_URL, { attempts: 1 })
+    ctx.extra.push(crashing)
+    const publisher = await createReadingPublisher(broker().connection, broker().queue)
+    try {
+      // Block every write to readings so the consumer's transaction cannot commit yet.
+      await lock.query('BEGIN')
+      await lock.query('LOCK TABLE readings IN ACCESS EXCLUSIVE MODE')
+      await startConsumer({
+        connection: crashing,
         pool: pool(),
         queue: broker().queue,
         lateThresholdMs: 30_000,
-        now: () => now,
       })
-      const publisher = await createReadingPublisher(broker().connection, broker().queue)
-      await publisher.publish(
-        readingMessage({ device_id: 'c-e2e', event_time: '2026-10-10T12:00:00.000Z' }),
-      )
-
-      await eventually(
-        () => readingCount('c-e2e'),
-        (n) => n === 1,
-      )
-      await consumer.stop()
-      await publisher.close()
-
-      expect(await storedReadings(pool(), 'c-e2e')).toMatchObject([
-        { processed_at: micros(now.toISOString()), late: true },
-      ])
-      expect(await readyCount()).toBe(0)
-    },
-  )
-
-  it.fails(
-    'does not ack before commit; a crash before ack redelivers without creating a duplicate',
-    async () => {
-      const lock = await pool().connect()
-      const crashing = await connectBroker(TEST_AMQP_URL, { attempts: 1 })
-      ctx.extra.push(crashing)
-      const publisher = await createReadingPublisher(broker().connection, broker().queue)
-      try {
-        // Block every write to readings so the consumer's transaction cannot commit yet.
-        await lock.query('BEGIN')
-        await lock.query('LOCK TABLE readings IN ACCESS EXCLUSIVE MODE')
-        await startConsumer({
-          connection: crashing,
-          pool: pool(),
-          queue: broker().queue,
-          lateThresholdMs: 30_000,
-        })
-        await publisher.publish(readingMessage({ device_id: 'c-crash' }))
-        const waiting = await eventually(
-          async () =>
-            (
-              await pool().query<{ n: number }>(
-                `SELECT count(*)::int AS n FROM pg_stat_activity
+      await publisher.publish(readingMessage({ device_id: 'c-crash' }))
+      const waiting = await eventually(
+        async () =>
+          (
+            await pool().query<{ n: number }>(
+              `SELECT count(*)::int AS n FROM pg_stat_activity
                 WHERE datname = current_database() AND wait_event_type = 'Lock'`,
-              )
-            ).rows[0]?.n ?? 0,
-          (n) => n > 0,
-        )
-        expect(waiting).toBeGreaterThan(0)
-
-        // Crash: the consumer's connection dies while its transaction is still uncommitted.
-        await crashing.close()
-        expect(await eventually(readyCount, (n) => n === 1)).toBe(1)
-      } finally {
-        await lock.query('COMMIT').catch(() => {})
-        lock.release()
-      }
-
-      // The orphaned transaction may still commit; the redelivery must then be a duplicate.
-      const restarted = await startConsumer({
-        connection: broker().connection,
-        pool: pool(),
-        queue: broker().queue,
-        lateThresholdMs: 30_000,
-      })
-      await eventually(readyCount, (n) => n === 0)
-      await eventually(
-        () => readingCount('c-crash'),
-        (n) => n === 1,
+            )
+          ).rows[0]?.n ?? 0,
+        (n) => n > 0,
       )
-      await restarted.stop()
-      await publisher.close()
+      expect(waiting).toBeGreaterThan(0)
 
-      expect(await readingCount('c-crash')).toBe(1)
-      expect(await readyCount()).toBe(0)
-    },
-  )
+      // Crash: the consumer's connection dies while its transaction is still uncommitted.
+      await crashing.close()
+      expect(await eventually(readyCount, (n) => n === 1)).toBe(1)
+    } finally {
+      await lock.query('COMMIT').catch(() => {})
+      lock.release()
+    }
+
+    // The orphaned transaction may still commit; the redelivery must then be a duplicate.
+    const restarted = await startConsumer({
+      connection: broker().connection,
+      pool: pool(),
+      queue: broker().queue,
+      lateThresholdMs: 30_000,
+    })
+    await eventually(readyCount, (n) => n === 0)
+    await eventually(
+      () => readingCount('c-crash'),
+      (n) => n === 1,
+    )
+    await restarted.stop()
+    await publisher.close()
+
+    expect(await readingCount('c-crash')).toBe(1)
+    expect(await readyCount()).toBe(0)
+  })
 })
 
 describe('consumer: undecodable messages go to the dead-letter queue', () => {
-  it.fails(
-    'routes bad JSON and invalid readings to <queue>.dead-letter unchanged and stores nothing',
-    async () => {
-      const consumer = await startConsumer({
-        connection: broker().connection,
-        pool: pool(),
-        queue: broker().queue,
-        lateThresholdMs: 30_000,
-      })
-      const badJson = Buffer.from('not json {')
-      const invalid = Buffer.from(
-        JSON.stringify({
-          reading: { ...readingMessage({ device_id: 'c-dlq' }).reading, value: 'hot' },
-          receivedAt: '2026-10-10T12:00:00.000Z',
-        }),
-      )
-      const channel = await broker().connection.createChannel()
-      channel.sendToQueue(broker().queue, badJson, { persistent: true })
-      channel.sendToQueue(broker().queue, invalid, { persistent: true })
-      await channel.close()
+  it('routes bad JSON and invalid readings to <queue>.dead-letter unchanged and stores nothing', async () => {
+    const consumer = await startConsumer({
+      connection: broker().connection,
+      pool: pool(),
+      queue: broker().queue,
+      lateThresholdMs: 30_000,
+    })
+    const badJson = Buffer.from('not json {')
+    const invalid = Buffer.from(
+      JSON.stringify({
+        reading: { ...readingMessage({ device_id: 'c-dlq' }).reading, value: 'hot' },
+        receivedAt: '2026-10-10T12:00:00.000Z',
+      }),
+    )
+    const channel = await broker().connection.createChannel()
+    channel.sendToQueue(broker().queue, badJson, { persistent: true })
+    channel.sendToQueue(broker().queue, invalid, { persistent: true })
+    await channel.close()
 
-      const first = await getOneMessage(broker().connection, deadLetterQueue())
-      const second = await getOneMessage(broker().connection, deadLetterQueue())
-      await consumer.stop()
+    const first = await getOneMessage(broker().connection, deadLetterQueue())
+    const second = await getOneMessage(broker().connection, deadLetterQueue())
+    await consumer.stop()
 
-      expect([first?.content, second?.content]).toEqual([badJson, invalid])
-      expect(await readyCount()).toBe(0)
-      expect(await readingCount('c-dlq')).toBe(0)
-    },
-  )
+    expect([first?.content, second?.content]).toEqual([badJson, invalid])
+    expect(await readyCount()).toBe(0)
+    expect(await readingCount('c-dlq')).toBe(0)
+  })
 })

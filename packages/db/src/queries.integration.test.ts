@@ -61,30 +61,27 @@ afterEach(async () => {
 })
 
 describe('listGateways: staleness', () => {
-  it.fails(
-    'is fresh at exactly the threshold and stale 1 ms past it, ordered by gatewayId',
-    async () => {
-      await seed([
-        { gateway_id: 'gw-b', device_id: 'd', receivedAt: isoAt(BASE, 0) },
-        { gateway_id: 'gw-a', device_id: 'd', receivedAt: isoAt(BASE, 1) },
-      ])
+  it('is fresh at exactly the threshold and stale 1 ms past it, ordered by gatewayId', async () => {
+    await seed([
+      { gateway_id: 'gw-b', device_id: 'd', receivedAt: isoAt(BASE, 0) },
+      { gateway_id: 'gw-a', device_id: 'd', receivedAt: isoAt(BASE, 1) },
+    ])
 
-      const gateways = await listGateways(pool(), {
-        now: dateAt(BASE, THRESHOLD + 1),
-        lateThresholdMs: THRESHOLD,
-      })
+    const gateways = await listGateways(pool(), {
+      now: dateAt(BASE, THRESHOLD + 1),
+      lateThresholdMs: THRESHOLD,
+    })
 
-      const expected: GatewaySummary[] = [
-        { gatewayId: 'gw-a', lastSeenAt: isoAt(BASE, 1), stale: false },
-        { gatewayId: 'gw-b', lastSeenAt: isoAt(BASE, 0), stale: true },
-      ]
-      expect(gateways).toStrictEqual(expected)
-    },
-  )
+    const expected: GatewaySummary[] = [
+      { gatewayId: 'gw-a', lastSeenAt: isoAt(BASE, 1), stale: false },
+      { gatewayId: 'gw-b', lastSeenAt: isoAt(BASE, 0), stale: true },
+    ]
+    expect(gateways).toStrictEqual(expected)
+  })
 })
 
 describe('listDevices / getDevice', () => {
-  it.fails('returns DeviceSummary objects with exactly the shared contract fields', async () => {
+  it('returns DeviceSummary objects with exactly the shared contract fields', async () => {
     await seed([
       {
         gateway_id: 'gw-b',
@@ -180,7 +177,7 @@ describe('listDevices / getDevice', () => {
     ).toStrictEqual(expected[1])
   })
 
-  it.fails('filters by status', async () => {
+  it('filters by status', async () => {
     await seed([{ device_id: 'inbox' }, { device_id: 'board' }])
     await pool().query(
       `UPDATE devices SET status = 'registered', name = 'Boiler', claimed_at = now() WHERE device_id = 'board'`,
@@ -198,7 +195,7 @@ describe('listDevices / getDevice', () => {
     ])
   })
 
-  it.fails('possiblyBehind is true when any reporting gateway is stale', async () => {
+  it('possiblyBehind is true when any reporting gateway is stale', async () => {
     await seed([
       { gateway_id: 'gw-fresh', device_id: 'mixed', receivedAt: isoAt(BASE, 40_000) },
       { gateway_id: 'gw-old', device_id: 'mixed', sequence: 1, receivedAt: isoAt(BASE, 0) },
@@ -216,7 +213,7 @@ describe('listDevices / getDevice', () => {
     ])
   })
 
-  it.fails('getDevice returns null for an unknown device', async () => {
+  it('getDevice returns null for an unknown device', async () => {
     expect(
       await getDevice(pool(), 'nope', { now: dateAt(BASE, 0), lateThresholdMs: THRESHOLD }),
     ).toBeNull()
@@ -224,92 +221,89 @@ describe('listDevices / getDevice', () => {
 })
 
 describe('listReadings', () => {
-  it.fails(
-    'returns the full history ordered by event_time with late and outOfOrder flags',
-    async () => {
-      await processReading(
-        pool(),
-        readingMessage({
-          gateway_id: 'gw-a',
-          device_id: 'hist',
-          sequence: 2,
-          value: 3,
-          event_time: isoAt(BASE, 5_000),
-          receivedAt: isoAt(BASE, 5_100),
-        }),
-        { now: dateAt(BASE, 5_200), lateThresholdMs: THRESHOLD },
-      )
-      await processReading(
-        pool(),
-        readingMessage({
-          gateway_id: 'gw-b',
-          device_id: 'hist',
-          sequence: 1,
-          value: 1,
-          event_time: isoAt(BASE, -40_000),
-          receivedAt: isoAt(BASE, 6_000),
-        }),
-        { now: dateAt(BASE, 6_100), lateThresholdMs: THRESHOLD },
-      )
-      await processReading(
-        pool(),
-        readingMessage({
-          gateway_id: 'gw-a',
-          device_id: 'hist',
-          sequence: 7,
-          metric: 'vibration',
-          value: 0.5,
-          event_time: '2026-10-10T14:00:01.000+02:00',
-          receivedAt: isoAt(BASE, 7_000),
-        }),
-        { now: dateAt(BASE, 7_100), lateThresholdMs: THRESHOLD },
-      )
+  it('returns the full history ordered by event_time with late and outOfOrder flags', async () => {
+    await processReading(
+      pool(),
+      readingMessage({
+        gateway_id: 'gw-a',
+        device_id: 'hist',
+        sequence: 2,
+        value: 3,
+        event_time: isoAt(BASE, 5_000),
+        receivedAt: isoAt(BASE, 5_100),
+      }),
+      { now: dateAt(BASE, 5_200), lateThresholdMs: THRESHOLD },
+    )
+    await processReading(
+      pool(),
+      readingMessage({
+        gateway_id: 'gw-b',
+        device_id: 'hist',
+        sequence: 1,
+        value: 1,
+        event_time: isoAt(BASE, -40_000),
+        receivedAt: isoAt(BASE, 6_000),
+      }),
+      { now: dateAt(BASE, 6_100), lateThresholdMs: THRESHOLD },
+    )
+    await processReading(
+      pool(),
+      readingMessage({
+        gateway_id: 'gw-a',
+        device_id: 'hist',
+        sequence: 7,
+        metric: 'vibration',
+        value: 0.5,
+        event_time: '2026-10-10T14:00:01.000+02:00',
+        receivedAt: isoAt(BASE, 7_000),
+      }),
+      { now: dateAt(BASE, 7_100), lateThresholdMs: THRESHOLD },
+    )
 
-      const readings = await listReadings(pool(), 'hist')
+    const readings = await listReadings(pool(), 'hist')
 
-      const expected: Reading[] = [
-        {
-          gatewayId: 'gw-b',
-          deviceId: 'hist',
-          sequence: 1,
-          metric: 'temperature',
-          value: 1,
-          eventTime: isoAt(BASE, -40_000),
-          receivedAt: isoAt(BASE, 6_000),
-          processedAt: isoAt(BASE, 6_100),
-          late: true,
-          outOfOrder: true,
-        },
-        {
-          gatewayId: 'gw-a',
-          deviceId: 'hist',
-          sequence: 7,
-          metric: 'vibration',
-          value: 0.5,
-          eventTime: isoAt(BASE, 1_000),
-          receivedAt: isoAt(BASE, 7_000),
-          processedAt: isoAt(BASE, 7_100),
-          late: false,
-          outOfOrder: false,
-        },
-        {
-          gatewayId: 'gw-a',
-          deviceId: 'hist',
-          sequence: 2,
-          metric: 'temperature',
-          value: 3,
-          eventTime: isoAt(BASE, 5_000),
-          receivedAt: isoAt(BASE, 5_100),
-          processedAt: isoAt(BASE, 5_200),
-          late: false,
-          outOfOrder: false,
-        },
-      ]
-      expect(readings).toStrictEqual(expected)
-    },
-  )
+    const expected: Reading[] = [
+      {
+        gatewayId: 'gw-b',
+        deviceId: 'hist',
+        sequence: 1,
+        metric: 'temperature',
+        value: 1,
+        eventTime: isoAt(BASE, -40_000),
+        receivedAt: isoAt(BASE, 6_000),
+        processedAt: isoAt(BASE, 6_100),
+        late: true,
+        outOfOrder: true,
+      },
+      {
+        gatewayId: 'gw-a',
+        deviceId: 'hist',
+        sequence: 7,
+        metric: 'vibration',
+        value: 0.5,
+        eventTime: isoAt(BASE, 1_000),
+        receivedAt: isoAt(BASE, 7_000),
+        processedAt: isoAt(BASE, 7_100),
+        late: false,
+        outOfOrder: false,
+      },
+      {
+        gatewayId: 'gw-a',
+        deviceId: 'hist',
+        sequence: 2,
+        metric: 'temperature',
+        value: 3,
+        eventTime: isoAt(BASE, 5_000),
+        receivedAt: isoAt(BASE, 5_100),
+        processedAt: isoAt(BASE, 5_200),
+        late: false,
+        outOfOrder: false,
+      },
+    ]
+    expect(readings).toStrictEqual(expected)
+  })
 
-  it.fails('breaks equal event_time by gateway_id then sequence', async () => {
+  it('breaks equal event_time by gateway_id then sequence', async () => {
     await seed([
       { gateway_id: 'gw-b', device_id: 'hist-tie', sequence: 0 },
       { gateway_id: 'gw-a', device_id: 'hist-tie', sequence: 10 },
@@ -325,7 +319,7 @@ describe('listReadings', () => {
     )
   })
 
-  it.fails('returns null for an unknown device', async () => {
+  it('returns null for an unknown device', async () => {
     expect(await listReadings(pool(), 'nope')).toBeNull()
   })
 })

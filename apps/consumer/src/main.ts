@@ -1,7 +1,8 @@
-import { assertReadingsQueue, connectBroker } from '@telemetry/broker'
+import { connectBroker } from '@telemetry/broker'
 import { createPool } from '@telemetry/db'
 import { loadConfig } from './config'
-import { createLoggingProcessor, createMessageHandler, type Logger } from './handler'
+import { startConsumer } from './consumer'
+import type { Logger } from './handler'
 
 const log: Logger = {
   info: (message, meta) => console.log(JSON.stringify({ level: 'info', message, meta })),
@@ -16,12 +17,9 @@ const log: Logger = {
 }
 
 const config = loadConfig()
-// TODO(phase 2A): the pool backs the transactional processor.
-const pool = createPool(config.databaseUrl)
+// One transaction per in-flight message, so the pool matches the prefetch window.
+const pool = createPool(config.databaseUrl, config.prefetch)
 const connection = await connectBroker(config.amqpUrl, { log: console.warn })
-const channel = await connection.createChannel()
-await assertReadingsQueue(channel, config.readingsQueue)
-await channel.prefetch(config.prefetch)
 
 // Unacked messages are redelivered by RabbitMQ, so exiting on connection loss is safe;
 // docker compose restarts the container.
@@ -30,15 +28,19 @@ connection.on('close', () => {
   process.exit(1)
 })
 
-const handleMessage = createMessageHandler(channel, createLoggingProcessor(log), log)
-const { consumerTag } = await channel.consume(config.readingsQueue, (message) => {
-  void handleMessage(message)
+const consumer = await startConsumer({
+  connection,
+  pool,
+  queue: config.readingsQueue,
+  lateThresholdMs: config.lateThresholdMs,
+  prefetch: config.prefetch,
+  log,
 })
 log.info('consuming', { queue: config.readingsQueue, prefetch: config.prefetch })
 
 async function shutdown(signal: string) {
   log.info(`${signal} received, shutting down`)
-  await channel.cancel(consumerTag).catch(() => {})
+  await consumer.stop()
   await connection.close().catch(() => {})
   await pool.end()
   process.exit(0)
