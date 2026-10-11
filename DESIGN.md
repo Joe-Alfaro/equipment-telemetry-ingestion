@@ -143,6 +143,30 @@ Notes:
   - **Flags:** the same in each run: 0 late, and out_of_order only on that run's seq 4.
   - **Run 2's seq 0** (temperature at B2+0) is not out of order relative to run 1's B1+4, provided the runs start more than 4 s apart.
 
+### Trace: actual vs predicted
+
+Run once, after the prediction above was committed, against a fresh `docker compose up`:
+`python3 telemetry_generator.py --target http://localhost:8080 --scenario trace --seed joe-alfaro --yes`.
+The printed sequence was identical to the one above. Results come from `psql`, with offsets measured from `B = min(event_time)`:
+
+| seq | gateway | metric      | value | offset | lag (actual) | lag (predicted) | late | out_of_order |
+| --- | ------- | ----------- | ----- | ------ | ------------ | --------------- | ---- | ------------ |
+| 0   | gw-a    | temperature | 41.73 | 0 s    | +0.017 s     | +0.00 s         | no   | no           |
+| 4   | gw-b    | temperature | 23.15 | 1 s    | −0.746 s     | −0.80 s         | no   | **yes**      |
+| 1   | gw-b    | power_draw  | 32.63 | 2 s    | −1.923 s     | −1.95 s         | no   | no           |
+| 2   | gw-b    | temperature | 36.52 | 3 s    | −2.865 s     | −2.90 s         | no   | no           |
+| 3   | gw-a    | temperature | 91.83 | 4 s    | −3.805 s     | −3.85 s         | no   | no           |
+| 5   | gw-b    | status      | 81.31 | 5 s    | −4.691 s     | −4.75 s         | no   | no           |
+
+- **History:** matches. There are 6 rows, and the seq 5 resend was a duplicate: there's no 7th row and 0 `reading_conflicts`. gw-b's `last_seen_at` did advance to the resend's arrival.
+- **Current per metric:** matches. Temperature is 91.83 (gw-a, seq 3, B+4), power_draw is 32.63 (gw-b, seq 1, B+2) and status is 81.31 (gw-b, seq 5, B+5). There's no vibration row.
+- **Flags:** match. 0 `late`, and 1 `out_of_order` (seq 4).
+- **Device:** matches. It's one `unregistered` record, first seen via gw-a-joe-alfaro, and it appeared in the inbox. 31 s after the run, the API reported `possiblyBehind: true`.
+- **Differences:**
+  - **Lags.** The generator's sends were about 59 ms apart, not 50 ms, so the lags differ from the estimate by a few tens of ms. No flag depends on that.
+  - **"Possibly behind" display.** The badge is shown only on board cards, not in the inbox. While the device was unclaimed, the API flag was true but the inbox card didn't show it. After it was claimed, the board card showed "Possibly behind", and the history view showed the same 6 rows with "Out of order" on seq 4 only.
+- **Not exercised:** the re-run prediction (run 2). The trace was sent once. The two-run behavior is covered by an integration test, not by this run.
+
 ## 1h vs 1min offline
 
 **1 minute:** the gateway is stale after 30 s, so its devices show "possibly behind". The

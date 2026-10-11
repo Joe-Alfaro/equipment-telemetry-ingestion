@@ -64,8 +64,15 @@ An agent saying "tests pass" or "the invariant holds" was not taken as evidence.
   the real trace later and compared the stored rows, current values and flags with the
   prediction. The prediction was not edited to match. The comparison is recorded in
   DESIGN.md.
-- **The dashboard in a real browser** against the real api: inbox discovery during a
-  scenario, claiming, the board, the history flags, and live updates over SSE.
+- **The dashboard against the real api.**
+  - An agent-driven browser read the live page during scenarios: devices appearing in the
+    inbox mid-run, and the board updating over SSE after claims and new readings.
+  - The interactive paths ran in a throwaway headless Chrome script (Playwright, outside
+    the repo): name validation, claim with a double-click guard, the board, and the
+    history flags.
+  - Claim semantics were also checked with curl: 200, 409 and 404, and exactly one 200
+    out of 10 parallel claims.
+  - A manual click-through by the human is still to do.
 - **Generator facts were checked against its source.** Claims about the generator (for
   example, that `sequence` is per gateway and device, not per gateway; that resends are
   byte-identical; that trace event times are mostly in the future) were checked by reading

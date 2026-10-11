@@ -59,7 +59,8 @@ What was deliberately left out, and why. Each item says what breaks and what wou
 - **No browser end-to-end test in CI.** The web app is covered by component tests
   (Testing Library and MSW), the backend by integration tests against real Postgres and
   RabbitMQ. The full stack was checked by hand: the scenarios against `docker compose up`,
-  the invariants in SQL, and the dashboard in a browser.
+  the invariants in SQL, and the dashboard through a throwaway headless-browser script
+  and curl, none of it kept as a test.
 - **No automated process-kill test.** Redelivery after a crash before ack is tested by
   closing the consumer's broker connection mid-transaction in an integration test. The
   container-level check (stop the consumer, ingest, start it again, and the readings
