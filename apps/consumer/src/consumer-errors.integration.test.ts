@@ -169,7 +169,7 @@ afterEach(async () => {
 })
 
 describe('consumer: deterministic data errors go to the dead-letter queue (rule 3)', () => {
-  it.fails.each([
+  it.each([
     ['22008 datetime field overflow', '22008'],
     ['22P05 untranslatable character (NUL)', '22P05'],
     ['22001 string data right truncation', '22001'],
@@ -201,68 +201,59 @@ describe('consumer: deterministic data errors go to the dead-letter queue (rule 
     },
   )
 
-  it.fails(
-    '25 real poison messages (Feb 30) then 1 valid reading: the valid one is stored within a few seconds',
-    async () => {
-      await start({ prefetch: 20 })
-      const poison = Array.from({ length: 25 }, (_, i) =>
-        body({ device_id: 'poison-feb30', sequence: i, event_time: '2026-02-30T00:00:00Z' }),
-      )
+  it('25 real poison messages (Feb 30) then 1 valid reading: the valid one is stored within a few seconds', async () => {
+    await start({ prefetch: 20 })
+    const poison = Array.from({ length: 25 }, (_, i) =>
+      body({ device_id: 'poison-feb30', sequence: i, event_time: '2026-02-30T00:00:00Z' }),
+    )
 
-      await sendRaw(poison)
-      await publish({ device_id: 'behind-poison' })
+    await sendRaw(poison)
+    await publish({ device_id: 'behind-poison' })
 
-      expect(
-        await eventually(
-          () => readingCount('behind-poison'),
-          (n) => n === 1,
-        ),
-      ).toBe(1)
-      expect(
-        await eventually(
-          () => queueCount(deadLetterQueue()),
-          (n) => n === 25,
-        ),
-      ).toBe(25)
-      expect(await queueCount(broker().queue)).toBe(0)
-      expect(await readingCount('poison-feb30')).toBe(0)
-    },
-  )
+    expect(
+      await eventually(
+        () => readingCount('behind-poison'),
+        (n) => n === 1,
+      ),
+    ).toBe(1)
+    expect(
+      await eventually(
+        () => queueCount(deadLetterQueue()),
+        (n) => n === 25,
+      ),
+    ).toBe(25)
+    expect(await queueCount(broker().queue)).toBe(0)
+    expect(await readingCount('poison-feb30')).toBe(0)
+  })
 })
 
 describe('consumer: unclassified errors retry with x-attempts, then dead-letter (rule 3)', () => {
-  it.fails(
-    'a generic error is attempted 5 times in total, then dead-lettered with its body unchanged',
-    async () => {
-      const failing = failFor('c-generic', () => new Error('something unexpected'))
-      await start({ processReading: failing.processReading })
+  it('a generic error is attempted 5 times in total, then dead-lettered with its body unchanged', async () => {
+    const failing = failFor('c-generic', () => new Error('something unexpected'))
+    await start({ processReading: failing.processReading })
 
-      const sent = await publish({ device_id: 'c-generic' })
+    const sent = await publish({ device_id: 'c-generic' })
 
-      const dead = await getOneMessage(broker().connection, deadLetterQueue(), {
-        timeoutMs: 15_000,
-      })
-      expect(JSON.parse(dead?.content.toString('utf8') ?? 'null')).toEqual(sent)
-      await sleep(500)
-      expect(failing.calls()).toBe(5)
-      expect(await queueCount(broker().queue)).toBe(0)
-    },
-  )
+    const dead = await getOneMessage(broker().connection, deadLetterQueue(), {
+      timeoutMs: 15_000,
+    })
+    expect(JSON.parse(dead?.content.toString('utf8') ?? 'null')).toEqual(sent)
+    await sleep(500)
+    expect(failing.calls()).toBe(5)
+    expect(await queueCount(broker().queue)).toBe(0)
+  })
 
-  it.fails(
-    'honours an incoming x-attempts header: x-attempts 4 gets one last attempt',
-    async () => {
-      const failing = failFor('c-attempts', () => new Error('something unexpected'))
-      await start({ processReading: failing.processReading })
+  it('honours an incoming x-attempts header: x-attempts 4 gets one last attempt', async () => {
+    const failing = failFor('c-attempts', () => new Error('something unexpected'))
+    await start({ processReading: failing.processReading })
 
-      await sendRaw([body({ device_id: 'c-attempts' })], { 'x-attempts': 4 })
+    await sendRaw([body({ device_id: 'c-attempts' })], { 'x-attempts': 4 })
 
-      const dead = await getOneMessage(broker().connection, deadLetterQueue(), { timeoutMs: 5_000 })
-      expect(dead).not.toBeNull()
-      await sleep(300)
-      expect(failing.calls()).toBe(1)
-    },
-  )
+    const dead = await getOneMessage(broker().connection, deadLetterQueue(), { timeoutMs: 5_000 })
+    expect(dead).not.toBeNull()
+    await sleep(300)
+    expect(failing.calls()).toBe(1)
+  })
 
   // Holds before rule 3 too (plain requeue); kept as a guard for the x-attempts retry path.
   it('a generic error that clears on the 3rd attempt is stored once and not dead-lettered', async () => {
@@ -307,32 +298,29 @@ describe('consumer: transient database errors are retried after a delay, uncappe
     }
   }
 
-  it.fails(
-    'ECONNREFUSED during a DB outage: retried with a delay past 5 attempts, stored once the DB is back, never dead-lettered',
-    async () => {
-      const db = outage()
-      await start({ processReading: db.processReading, retryDelayMs: 100 })
+  it('ECONNREFUSED during a DB outage: retried with a delay past 5 attempts, stored once the DB is back, never dead-lettered', async () => {
+    const db = outage()
+    await start({ processReading: db.processReading, retryDelayMs: 100 })
 
-      await publish({ device_id: 'c-outage' })
-      await sleep(1_500)
-      const attemptsDuringOutage = db.calls()
-      db.end()
+    await publish({ device_id: 'c-outage' })
+    await sleep(1_500)
+    const attemptsDuringOutage = db.calls()
+    db.end()
 
-      // Delayed (about 15 attempts in 1.5 s, not a hot loop) and uncapped (more than 5).
-      expect(attemptsDuringOutage).toBeGreaterThan(5)
-      expect(attemptsDuringOutage).toBeLessThanOrEqual(20)
-      expect(
-        await eventually(
-          () => readingCount('c-outage'),
-          (n) => n === 1,
-        ),
-      ).toBe(1)
-      expect(await queueCount(deadLetterQueue())).toBe(0)
-      expect(await queueCount(broker().queue)).toBe(0)
-    },
-  )
+    // Delayed (about 15 attempts in 1.5 s, not a hot loop) and uncapped (more than 5).
+    expect(attemptsDuringOutage).toBeGreaterThan(5)
+    expect(attemptsDuringOutage).toBeLessThanOrEqual(20)
+    expect(
+      await eventually(
+        () => readingCount('c-outage'),
+        (n) => n === 1,
+      ),
+    ).toBe(1)
+    expect(await queueCount(deadLetterQueue())).toBe(0)
+    expect(await queueCount(broker().queue)).toBe(0)
+  })
 
-  it.fails('the default retry delay is about 1 s', async () => {
+  it('the default retry delay is about 1 s', async () => {
     const db = outage()
     await start({ processReading: db.processReading })
 
@@ -352,7 +340,7 @@ describe('consumer: transient database errors are retried after a delay, uncappe
     expect(await queueCount(deadLetterQueue())).toBe(0)
   })
 
-  it.fails.each([
+  it.each([
     ['08006 connection failure', pgError('08006')],
     ['57P01 admin shutdown', pgError('57P01')],
     ['57P02 crash shutdown', pgError('57P02')],
@@ -384,7 +372,7 @@ describe('consumer: transient database errors are retried after a delay, uncappe
 })
 
 describe('consumer: future flag is configurable (rule 4)', () => {
-  it.fails('passes futureSkewMs to processReading', async () => {
+  it('passes futureSkewMs to processReading', async () => {
     const now = dateAt(BASE, 0)
     await start({ now: () => now, futureSkewMs: 1_000 })
 

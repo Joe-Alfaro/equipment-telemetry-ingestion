@@ -75,58 +75,52 @@ afterAll(async () => {
 })
 
 describe('processReading: identity is (gateway_id, device_id, metric, sequence, event_time) (rule 1)', () => {
-  it.fails(
-    '3 metrics with the same gateway, device, sequence and event_time are 3 readings and 3 current_state rows',
-    async () => {
-      const outcomes = await processInOrder(sample('multi-metric'))
+  it('3 metrics with the same gateway, device, sequence and event_time are 3 readings and 3 current_state rows', async () => {
+    const outcomes = await processInOrder(sample('multi-metric'))
 
-      expect(outcomes.map((o) => o.status)).toEqual(['inserted', 'inserted', 'inserted'])
-      expect(
-        (await storedReadings(pool(), 'multi-metric')).map((r) => [r.metric, r.value]).sort(),
-      ).toEqual([
-        ['power_draw', 3.5],
-        ['temperature', 21],
-        ['vibration', 0.25],
-      ])
-      expect(
-        (await storedCurrentState(pool(), 'multi-metric')).map((s) => [
-          s.metric,
-          s.value,
-          s.sequence,
-        ]),
-      ).toEqual([
-        ['power_draw', 3.5, 7],
-        ['temperature', 21, 7],
-        ['vibration', 0.25, 7],
-      ])
-      expect(await conflictCount('multi-metric')).toBe(0)
-    },
-  )
+    expect(outcomes.map((o) => o.status)).toEqual(['inserted', 'inserted', 'inserted'])
+    expect(
+      (await storedReadings(pool(), 'multi-metric')).map((r) => [r.metric, r.value]).sort(),
+    ).toEqual([
+      ['power_draw', 3.5],
+      ['temperature', 21],
+      ['vibration', 0.25],
+    ])
+    expect(
+      (await storedCurrentState(pool(), 'multi-metric')).map((s) => [
+        s.metric,
+        s.value,
+        s.sequence,
+      ]),
+    ).toEqual([
+      ['power_draw', 3.5, 7],
+      ['temperature', 21, 7],
+      ['vibration', 0.25, 7],
+    ])
+    expect(await conflictCount('multi-metric')).toBe(0)
+  })
 
-  it.fails(
-    'the same 5-part key with a different value is a conflict and keeps the first copy',
-    async () => {
-      const [temperature, powerDraw] = sample('multi-conflict')
-      const changed = { ...powerDraw, value: 99 }
+  it('the same 5-part key with a different value is a conflict and keeps the first copy', async () => {
+    const [temperature, powerDraw] = sample('multi-conflict')
+    const changed = { ...powerDraw, value: 99 }
 
-      const outcomes = await processInOrder([temperature, powerDraw, changed] as ReadingOverrides[])
+    const outcomes = await processInOrder([temperature, powerDraw, changed] as ReadingOverrides[])
 
-      expect(outcomes.map((o) => o.status)).toEqual(['inserted', 'inserted', 'conflict'])
-      expect(
-        (await storedReadings(pool(), 'multi-conflict')).map((r) => [r.metric, r.value]).sort(),
-      ).toEqual([
-        ['power_draw', 3.5],
-        ['temperature', 21],
-      ])
-      const { rows } = await pool().query<{ payload: unknown }>(
-        'SELECT payload FROM reading_conflicts WHERE device_id = $1',
-        ['multi-conflict'],
-      )
-      expect(rows.map((row) => row.payload)).toEqual([readingMessage(changed).reading])
-    },
-  )
+    expect(outcomes.map((o) => o.status)).toEqual(['inserted', 'inserted', 'conflict'])
+    expect(
+      (await storedReadings(pool(), 'multi-conflict')).map((r) => [r.metric, r.value]).sort(),
+    ).toEqual([
+      ['power_draw', 3.5],
+      ['temperature', 21],
+    ])
+    const { rows } = await pool().query<{ payload: unknown }>(
+      'SELECT payload FROM reading_conflicts WHERE device_id = $1',
+      ['multi-conflict'],
+    )
+    expect(rows.map((row) => row.payload)).toEqual([readingMessage(changed).reading])
+  })
 
-  it.fails('a byte-identical resend of any metric in the sample is a duplicate', async () => {
+  it('a byte-identical resend of any metric in the sample is a duplicate', async () => {
     const readings = sample('multi-resend')
 
     const outcomes = await processInOrder([...readings, ...readings])

@@ -43,8 +43,9 @@ curl -i -X POST localhost:8080/ingest/readings \
 Stop with `docker compose down`. Add `-v` to wipe all data and start fresh.
 
 Configuration (set in `docker-compose.yml`): `LATE_THRESHOLD_MS` (default `30000`) drives
-both the `late` flag and gateway staleness; `CONSUMER_PREFETCH` (default `20`) is the
-number of messages the consumer processes concurrently.
+both the `late` flag and gateway staleness; `FUTURE_SKEW_MS` (default `60000`) flags a
+reading `future` when its `event_time` is that far ahead of processing; `CONSUMER_PREFETCH`
+(default `20`) is the number of messages the consumer processes concurrently.
 
 ## Running the scenarios
 
@@ -90,7 +91,7 @@ docker compose exec postgres psql -U telemetry
 ```sql
 -- 1. No duplicates: every stored reading has a distinct identity key (also a UNIQUE constraint).
 SELECT device_id, count(*) AS stored,
-       count(DISTINCT (gateway_id, device_id, sequence, event_time)) AS distinct_keys
+       count(DISTINCT (gateway_id, device_id, metric, sequence, event_time)) AS distinct_keys
 FROM readings GROUP BY device_id ORDER BY device_id;
 
 -- 2. Current state = greatest (event_time, gateway_id, sequence) per (device, metric). Expect 0 rows.

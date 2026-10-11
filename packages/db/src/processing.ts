@@ -28,7 +28,7 @@ export interface ProcessOptions {
 /*
  * Every step relies on a constraint or a row lock, never on timing:
  *   devices        PK + ON CONFLICT DO NOTHING      -> one row however many first sightings race
- *   readings       4-part UNIQUE + ON CONFLICT      -> one row however often a reading is resent
+ *   readings       5-part UNIQUE + ON CONFLICT      -> one row however often a reading is resent
  *   current_state  PK + conditional ON CONFLICT DO UPDATE -> only a strictly greater
  *                  (event_time, gateway_id, sequence) replaces the row, in any arrival order
  * Locks are always taken in the order devices -> readings -> current_state -> gateways, so
@@ -47,6 +47,9 @@ async function registerDevice(client: PoolClient, message: ReadingMessage): Prom
   return rowCount === 1
 }
 
+/** Default for ProcessOptions.futureSkewMs (rule 4). */
+export const DEFAULT_FUTURE_SKEW_MS = 60_000
+
 interface InsertedReading {
   id: string
   late: boolean
@@ -55,15 +58,17 @@ interface InsertedReading {
 async function insertReading(
   client: PoolClient,
   { reading, receivedAt }: ReadingMessage,
-  { now, lateThresholdMs }: ProcessOptions,
+  { now, lateThresholdMs, futureSkewMs = DEFAULT_FUTURE_SKEW_MS }: ProcessOptions,
 ): Promise<InsertedReading | null> {
-  // `late` is computed in SQL so event_time keeps its microseconds (a JS Date would not).
+  // `late` and `future` are computed in SQL so event_time keeps its microseconds (a JS Date would not).
   const { rows } = await client.query<InsertedReading>(
     `INSERT INTO readings
-       (gateway_id, device_id, sequence, metric, value, event_time, received_at, processed_at, late)
+       (gateway_id, device_id, sequence, metric, value, event_time, received_at, processed_at,
+        late, future)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-             $8::timestamptz - $6::timestamptz > $9::double precision * interval '1 millisecond')
-     ON CONFLICT (gateway_id, device_id, sequence, event_time) DO NOTHING
+             $8::timestamptz - $6::timestamptz > $9::double precision * interval '1 millisecond',
+             $6::timestamptz - $8::timestamptz > $10::double precision * interval '1 millisecond')
+     ON CONFLICT (gateway_id, device_id, metric, sequence, event_time) DO NOTHING
      RETURNING id, late`,
     [
       reading.gateway_id,
@@ -75,6 +80,7 @@ async function insertReading(
       receivedAt,
       now.toISOString(),
       lateThresholdMs,
+      futureSkewMs,
     ],
   )
   return rows[0] ?? null
@@ -85,13 +91,14 @@ async function classifyExisting(
   client: PoolClient,
   { reading, receivedAt }: ReadingMessage,
 ): Promise<'duplicate' | 'conflict'> {
-  const { rows } = await client.query<{ metric: string; value: number }>(
-    `SELECT metric, value FROM readings
-      WHERE gateway_id = $1 AND device_id = $2 AND sequence = $3 AND event_time = $4`,
-    [reading.gateway_id, reading.device_id, reading.sequence, reading.event_time],
+  const { rows } = await client.query<{ value: number }>(
+    `SELECT value FROM readings
+      WHERE gateway_id = $1 AND device_id = $2 AND metric = $3 AND sequence = $4
+        AND event_time = $5`,
+    [reading.gateway_id, reading.device_id, reading.metric, reading.sequence, reading.event_time],
   )
   const existing = rows[0]
-  if (existing && existing.metric === reading.metric && existing.value === reading.value) {
+  if (existing && existing.value === reading.value) {
     return 'duplicate'
   }
   await client.query(

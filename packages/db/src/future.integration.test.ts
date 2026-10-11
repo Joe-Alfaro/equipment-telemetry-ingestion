@@ -55,24 +55,21 @@ afterAll(async () => {
 })
 
 describe('processReading: future flag (event_time - processed_at > futureSkewMs) (rule 4)', () => {
-  it.fails(
-    'defaults to 60 s: set 1 ms past it, not at exactly 60 s, not at +5 s, not in the past',
-    async () => {
-      await apply({ device_id: 'future-default', sequence: 0, event_time: isoAt(BASE, 60_001) })
-      await apply({ device_id: 'future-default', sequence: 1, event_time: isoAt(BASE, 60_000) })
-      await apply({ device_id: 'future-default', sequence: 2, event_time: isoAt(BASE, 5_000) })
-      await apply({ device_id: 'future-default', sequence: 3, event_time: isoAt(BASE, -1_000) })
+  it('defaults to 60 s: set 1 ms past it, not at exactly 60 s, not at +5 s, not in the past', async () => {
+    await apply({ device_id: 'future-default', sequence: 0, event_time: isoAt(BASE, 60_001) })
+    await apply({ device_id: 'future-default', sequence: 1, event_time: isoAt(BASE, 60_000) })
+    await apply({ device_id: 'future-default', sequence: 2, event_time: isoAt(BASE, 5_000) })
+    await apply({ device_id: 'future-default', sequence: 3, event_time: isoAt(BASE, -1_000) })
 
-      expect(await futureFlags('future-default')).toEqual([
-        [0, true],
-        [1, false],
-        [2, false],
-        [3, false],
-      ])
-    },
-  )
+    expect(await futureFlags('future-default')).toEqual([
+      [0, true],
+      [1, false],
+      [2, false],
+      [3, false],
+    ])
+  })
 
-  it.fails('honours the configured futureSkewMs', async () => {
+  it('honours the configured futureSkewMs', async () => {
     await apply(
       { device_id: 'future-config', sequence: 0, event_time: isoAt(BASE, 1_001) },
       { futureSkewMs: 1_000 },
@@ -88,22 +85,19 @@ describe('processReading: future flag (event_time - processed_at > futureSkewMs)
     ])
   })
 
-  it.fails(
-    'is a flag only: the future reading is stored, becomes current, and is not late',
-    async () => {
-      const future = isoAt(BASE, 365 * 24 * 3_600_000)
+  it('is a flag only: the future reading is stored, becomes current, and is not late', async () => {
+    const future = isoAt(BASE, 365 * 24 * 3_600_000)
 
-      const outcome = await apply({ device_id: 'future-current', value: 99, event_time: future })
-      await apply({ device_id: 'future-current', sequence: 1, value: 20, event_time: BASE })
+    const outcome = await apply({ device_id: 'future-current', value: 99, event_time: future })
+    await apply({ device_id: 'future-current', sequence: 1, value: 20, event_time: BASE })
 
-      expect(outcome).toMatchObject({ status: 'inserted', late: false, currentStateUpdated: true })
-      expect(await futureFlags('future-current')).toEqual([
-        [0, true],
-        [1, false],
-      ])
-      expect(
-        (await storedCurrentState(pool(), 'future-current')).map((s) => [s.value, s.event_time]),
-      ).toEqual([[99, micros(future)]])
-    },
-  )
+    expect(outcome).toMatchObject({ status: 'inserted', late: false, currentStateUpdated: true })
+    expect(await futureFlags('future-current')).toEqual([
+      [0, true],
+      [1, false],
+    ])
+    expect(
+      (await storedCurrentState(pool(), 'future-current')).map((s) => [s.value, s.event_time]),
+    ).toEqual([[99, micros(future)]])
+  })
 })

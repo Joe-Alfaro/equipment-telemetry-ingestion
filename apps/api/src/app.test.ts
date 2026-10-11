@@ -138,7 +138,7 @@ describe('POST /ingest/readings: only storable readings are accepted (rule 2)', 
     return { response, published: publisher.published }
   }
 
-  it.fails.each([
+  it.each([
     ['Feb 30', { ...valid, event_time: '2026-02-30T00:00:00Z' }],
     ['Feb 29 in a non-leap year', { ...valid, event_time: '2026-02-29T00:00:00Z' }],
     ['Apr 31', { ...valid, event_time: '2026-04-31T00:00:00Z' }],
@@ -179,7 +179,7 @@ describe('POST /ingest/readings: only storable readings are accepted (rule 2)', 
     expect(published).toEqual([])
   })
 
-  it.fails.each([
+  it.each([
     ['2026-10-10T12:00:00', /^2026-10-10T12:00:00(Z|\+00:00)$/],
     ['2026-10-10T12:00:00.123456', /^2026-10-10T12:00:00\.123456(Z|\+00:00)$/],
   ])('accepts the naive timestamp %s as UTC', async (eventTime, published) => {

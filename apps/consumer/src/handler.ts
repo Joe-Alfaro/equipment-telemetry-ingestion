@@ -3,10 +3,12 @@ import {
   parseIngestReading,
   type ReadingMessage,
 } from '@telemetry/shared'
+import { classifyError } from './errors'
 
 /** The subset of an amqplib message the handler needs. */
 export interface DeliveredMessage {
   content: Buffer
+  properties?: { headers?: Record<string, unknown> }
 }
 
 /** The subset of an amqplib channel the handler needs. */
@@ -42,6 +44,27 @@ export function decodeReadingMessage(content: Buffer): ReadingMessage | null {
 /** Republishes an undecodable message body, resolving once the broker has confirmed it. */
 export type DeadLetter = (content: Buffer) => Promise<void>
 
+/** Header counting the processing attempts a message has already had (rule 3). */
+export const ATTEMPTS_HEADER = 'x-attempts'
+
+export interface RetryPolicy {
+  /** Republishes the body to the work queue with x-attempts = `attempts`, resolving once confirmed. */
+  republish(content: Buffer, attempts: number): Promise<void>
+  /** Delay before a transient error is retried. */
+  retryDelayMs: number
+  /** Total attempts for an unclassified error before it is dead-lettered. */
+  maxAttempts: number
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function attemptsSoFar(message: DeliveredMessage): number {
+  const attempts = Number(message.properties?.headers?.[ATTEMPTS_HEADER] ?? 0)
+  return Number.isSafeInteger(attempts) && attempts > 0 ? attempts : 0
+}
+
 /**
  * Builds the per-delivery callback. Ack happens only after `processReading` resolves,
  * i.e. after the Postgres transaction commits; a crash before that leaves the message
@@ -52,6 +75,7 @@ export function createMessageHandler(
   processReading: ProcessReading,
   log: Logger,
   deadLetter?: DeadLetter,
+  retry?: RetryPolicy,
 ) {
   // ack/nack throw synchronously once the channel is closed (e.g. the connection died while a
   // transaction was in flight). The message is then redelivered, so there is nothing to do.
@@ -85,6 +109,60 @@ export function createMessageHandler(
     }
   }
 
+  async function moveToDeadLetter(message: DeliveredMessage, reason: string, error: unknown) {
+    if (!deadLetter) {
+      settle('nack', message)
+      return
+    }
+    try {
+      await deadLetter(message.content)
+      log.error(`moved message to the dead-letter queue: ${reason}`, { error })
+      settle('ack', message)
+    } catch (deadLetterError) {
+      log.error('failed to dead-letter message, requeueing', deadLetterError)
+      await sleep(retry?.retryDelayMs ?? 0)
+      settle('nack', message, true)
+    }
+  }
+
+  /**
+   * Rule 3: no message holds a prefetch slot forever. Data errors are dead-lettered at once,
+   * transient errors are requeued after a delay with no cap, anything else is republished with
+   * x-attempts and dead-lettered after maxAttempts.
+   */
+  async function handleFailure(message: DeliveredMessage, decoded: ReadingMessage, error: unknown) {
+    const kind = classifyError(error)
+    if (kind === 'data') {
+      await moveToDeadLetter(message, 'data error', error)
+      return
+    }
+    if (kind === 'transient' || !retry) {
+      log.error('transient error processing reading, retrying', { error, reading: decoded.reading })
+      await sleep(retry?.retryDelayMs ?? 0)
+      settle('nack', message, true)
+      return
+    }
+
+    const attempts = attemptsSoFar(message) + 1
+    if (attempts >= retry.maxAttempts) {
+      await moveToDeadLetter(message, `failed ${attempts} attempts`, error)
+      return
+    }
+    log.error(`failed to process reading (attempt ${attempts}), retrying`, {
+      error,
+      reading: decoded.reading,
+    })
+    try {
+      // Republish before ack: a crash in between leaves a duplicate, which processReading absorbs.
+      await retry.republish(message.content, attempts)
+      settle('ack', message)
+    } catch (republishError) {
+      log.error('failed to republish message, requeueing', republishError)
+      await sleep(retry.retryDelayMs)
+      settle('nack', message, true)
+    }
+  }
+
   return async function handleMessage(message: DeliveredMessage | null) {
     // amqplib delivers null when the broker cancels the consumer.
     if (!message) {
@@ -102,8 +180,7 @@ export function createMessageHandler(
     try {
       await processReading(decoded)
     } catch (error) {
-      log.error('failed to process reading, requeueing', { error, reading: decoded.reading })
-      settle('nack', message, true)
+      await handleFailure(message, decoded, error)
       return
     }
     settle('ack', message)

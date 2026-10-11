@@ -217,7 +217,7 @@ describe('GET /api/devices/:deviceId/readings', () => {
   })
 
   // Rule 4: future = event_time - processed_at > FUTURE_SKEW_MS (default 60000).
-  it.fails('exposes the future flag on each Reading', async () => {
+  it('exposes the future flag on each Reading', async () => {
     await seed([
       { device_id: 'skewed', sequence: 0, event_time: isoAt(BASE, 100_001) },
       { device_id: 'skewed', sequence: 1, event_time: isoAt(BASE, 45_000) },

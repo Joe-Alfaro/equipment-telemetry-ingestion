@@ -137,13 +137,14 @@ interface ReadingRow {
   processed_at: Date
   late: boolean
   out_of_order: boolean
+  future: boolean
 }
 
 /** History ordered by (event_time, gateway_id, sequence); null when the device is unknown. */
 export async function listReadings(pool: Pool, deviceId: string): Promise<Reading[] | null> {
   const { rows } = await pool.query<ReadingRow>(
     `SELECT gateway_id, device_id, sequence, metric, value, event_time, received_at,
-            processed_at, late, out_of_order
+            processed_at, late, out_of_order, future
        FROM readings WHERE device_id = $1
       ORDER BY event_time, gateway_id COLLATE "C", sequence`,
     [deviceId],
@@ -164,8 +165,7 @@ export async function listReadings(pool: Pool, deviceId: string): Promise<Readin
     processedAt: row.processed_at.toISOString(),
     late: row.late,
     outOfOrder: row.out_of_order,
-    // TODO(F-AI): stub so the shared type compiles; read readings.future (rule 4).
-    future: false,
+    future: row.future,
   }))
 }
 

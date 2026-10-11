@@ -11,13 +11,13 @@ describe('consumer config: FUTURE_SKEW_MS (rule 4)', () => {
     vi.unstubAllEnvs()
   })
 
-  it.fails('defaults futureSkewMs to 60000', () => {
+  it('defaults futureSkewMs to 60000', () => {
     vi.stubEnv('FUTURE_SKEW_MS', undefined)
 
     expect(loadConfig()).toMatchObject({ futureSkewMs: 60_000 })
   })
 
-  it.fails('reads futureSkewMs from FUTURE_SKEW_MS', () => {
+  it('reads futureSkewMs from FUTURE_SKEW_MS', () => {
     vi.stubEnv('FUTURE_SKEW_MS', '5000')
 
     expect(loadConfig()).toMatchObject({ futureSkewMs: 5_000 })

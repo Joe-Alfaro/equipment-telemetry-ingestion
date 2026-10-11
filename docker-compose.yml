@@ -9,6 +9,7 @@ x-node-env: &node-env
   AMQP_URL: amqp://telemetry:telemetry@rabbitmq:5672
   READINGS_QUEUE: readings
   LATE_THRESHOLD_MS: '30000'
+  FUTURE_SKEW_MS: '60000'
 
 services:
   postgres:

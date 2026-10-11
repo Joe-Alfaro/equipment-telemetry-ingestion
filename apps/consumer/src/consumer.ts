@@ -1,6 +1,6 @@
 import { assertReadingsQueue, type BrokerConnection } from '@telemetry/broker'
 import { processReading, type Pool } from '@telemetry/db'
-import { createMessageHandler, type Logger } from './handler'
+import { ATTEMPTS_HEADER, createMessageHandler, type Logger } from './handler'
 
 export interface ConsumerOptions {
   connection: BrokerConnection
@@ -48,6 +48,9 @@ export async function startConsumer({
   prefetch = 20,
   now = () => new Date(),
   log = silentLog,
+  futureSkewMs = 60_000,
+  retryDelayMs = 1_000,
+  maxAttempts = 5,
   processReading: process = processReading,
 }: ConsumerOptions): Promise<RunningConsumer> {
   const channel = await connection.createConfirmChannel()
@@ -58,21 +61,35 @@ export async function startConsumer({
   await channel.assertQueue(deadLetterQueue, { durable: true })
   await channel.prefetch(prefetch)
 
-  function deadLetter(content: Buffer): Promise<void> {
+  function sendConfirmed(
+    target: string,
+    content: Buffer,
+    headers?: Record<string, unknown>,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
-      channel.sendToQueue(deadLetterQueue, content, { persistent: true }, (error) =>
+      channel.sendToQueue(target, content, { persistent: true, headers }, (error) =>
         error ? reject(error) : resolve(),
       )
     })
   }
 
+  function deadLetter(content: Buffer): Promise<void> {
+    return sendConfirmed(deadLetterQueue, content)
+  }
+
+  // Back of the queue, so readings behind a failing one keep flowing.
+  function republish(content: Buffer, attempts: number): Promise<void> {
+    return sendConfirmed(queue, content, { [ATTEMPTS_HEADER]: attempts })
+  }
+
   const handleMessage = createMessageHandler(
     channel,
     async (message) => {
-      await process(pool, message, { now: now(), lateThresholdMs })
+      await process(pool, message, { now: now(), lateThresholdMs, futureSkewMs })
     },
     log,
     deadLetter,
+    { republish, retryDelayMs, maxAttempts },
   )
 
   const inFlight = new Set<Promise<void>>()

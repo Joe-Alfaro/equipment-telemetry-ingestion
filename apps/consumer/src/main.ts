@@ -33,6 +33,7 @@ const consumer = await startConsumer({
   pool,
   queue: config.readingsQueue,
   lateThresholdMs: config.lateThresholdMs,
+  futureSkewMs: config.futureSkewMs,
   prefetch: config.prefetch,
   log,
 })
