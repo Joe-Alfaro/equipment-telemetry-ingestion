@@ -100,6 +100,27 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Opt-in demo traffic: `docker compose --profile demo up --build`. Plain `up` never starts it,
+  # so the generator's scenarios and SQL checks see a quiet database.
+  simulator:
+    profiles: ['demo']
+    build:
+      context: .
+      target: simulator
+    init: true
+    environment:
+      API_URL: http://api:8080
+      SIM_INTERVAL_MS: ${SIM_INTERVAL_MS:-2000}
+      SIM_OUTAGE_EVERY_MS: ${SIM_OUTAGE_EVERY_MS:-300000}
+      SIM_OUTAGE_MS: ${SIM_OUTAGE_MS:-60000}
+      SIM_NEW_DEVICE_EVERY_MS: ${SIM_NEW_DEVICE_EVERY_MS:-600000}
+      SIM_MAX_NEW_DEVICES: ${SIM_MAX_NEW_DEVICES:-10}
+      SIM_SEED: ${SIM_SEED:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   rabbitdata:
