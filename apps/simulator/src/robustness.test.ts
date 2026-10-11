@@ -29,7 +29,7 @@ function loggedProblems(logger: FakeLogger): number {
 }
 
 describe('simulator: robustness (rule 5)', () => {
-  it.fails('logs a 5xx and retries the same body later until it is accepted', async () => {
+  it('logs a 5xx and retries the same body later until it is accepted', async () => {
     const { simulator, clock, http, logger } = createHarness(
       {},
       { responder: failThirdBody((attempt) => (attempt < 2 ? 503 : 202)) },
@@ -45,25 +45,22 @@ describe('simulator: robustness (rule 5)', () => {
     expectEveryBodyAccepted(http)
   })
 
-  it.fails(
-    'logs a network error and retries the same body later until it is accepted',
-    async () => {
-      const { simulator, clock, http, logger } = createHarness(
-        {},
-        { responder: failThirdBody((attempt) => (attempt < 2 ? 'network-error' : 202)) },
-      )
+  it('logs a network error and retries the same body later until it is accepted', async () => {
+    const { simulator, clock, http, logger } = createHarness(
+      {},
+      { responder: failThirdBody((attempt) => (attempt < 2 ? 'network-error' : 202)) },
+    )
 
-      await runFor(simulator, clock, 60_000)
+    await runFor(simulator, clock, 60_000)
 
-      const attempts = thirdBodyAttempts(http)
-      expect(attempts.map((attempt) => attempt.status)).toEqual([null, null, 202])
-      expect(new Set(attempts.map((attempt) => attempt.at)).size).toBe(3)
-      expect(loggedProblems(logger)).toBeGreaterThanOrEqual(2)
-      expectEveryBodyAccepted(http)
-    },
-  )
+    const attempts = thirdBodyAttempts(http)
+    expect(attempts.map((attempt) => attempt.status)).toEqual([null, null, 202])
+    expect(new Set(attempts.map((attempt) => attempt.at)).size).toBe(3)
+    expect(loggedProblems(logger)).toBeGreaterThanOrEqual(2)
+    expectEveryBodyAccepted(http)
+  })
 
-  it.fails('logs a 4xx and drops the reading without retrying it', async () => {
+  it('logs a 4xx and drops the reading without retrying it', async () => {
     const { simulator, clock, http, logger } = createHarness(
       {},
       { responder: failThirdBody(() => 400) },
@@ -80,28 +77,25 @@ describe('simulator: robustness (rule 5)', () => {
     )
   })
 
-  it.fails(
-    'keeps retrying while the api is down at startup and delivers everything once it is up',
-    async () => {
-      const apiUpAt = T0 + 30_000
-      const { simulator, clock, http, logger } = createHarness(
-        {},
-        { responder: ({ at }) => (at < apiUpAt ? 'network-error' : 202) },
-      )
+  it('keeps retrying while the api is down at startup and delivers everything once it is up', async () => {
+    const apiUpAt = T0 + 30_000
+    const { simulator, clock, http, logger } = createHarness(
+      {},
+      { responder: ({ at }) => (at < apiUpAt ? 'network-error' : 202) },
+    )
 
-      await runFor(simulator, clock, 150_000)
+    await runFor(simulator, clock, 150_000)
 
-      const generatedWhileDown = firstAttempts(sentReadings(http)).filter(
-        (post) => post.eventTimeMs < apiUpAt,
-      )
-      // 6 devices x 15 readings in the first 30 s.
-      expect(generatedWhileDown.length).toBeGreaterThanOrEqual(80)
-      expect(loggedProblems(logger)).toBeGreaterThan(0)
-      expectEveryBodyAccepted(http)
-    },
-  )
+    const generatedWhileDown = firstAttempts(sentReadings(http)).filter(
+      (post) => post.eventTimeMs < apiUpAt,
+    )
+    // 6 devices x 15 readings in the first 30 s.
+    expect(generatedWhileDown.length).toBeGreaterThanOrEqual(80)
+    expect(loggedProblems(logger)).toBeGreaterThan(0)
+    expectEveryBodyAccepted(http)
+  })
 
-  it.fails('sends nothing after stop() resolves', async () => {
+  it('sends nothing after stop() resolves', async () => {
     const { simulator, clock, http } = createHarness()
 
     await runFor(simulator, clock, 10_000)

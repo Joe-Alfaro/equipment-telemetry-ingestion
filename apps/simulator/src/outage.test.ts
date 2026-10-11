@@ -29,46 +29,40 @@ async function runFirstOutage(seed = 1) {
 }
 
 describe('simulator: outage and backlog episodes (rule 3)', () => {
-  it.fails(
-    'silences gw-demo-1 for outageMs, starting outageEveryMs after start, while the others keep sending',
-    async () => {
-      const { http } = await runFirstOutage()
+  it('silences gw-demo-1 for outageMs, starting outageEveryMs after start, while the others keep sending', async () => {
+    const { http } = await runFirstOutage()
 
-      const during = sentReadings(http).filter(
-        (post) => post.at > OUTAGE_START + TICK_MS && post.at < OUTAGE_END - TICK_MS,
-      )
-      expect(during.filter((post) => post.reading.gateway_id === 'gw-demo-1')).toEqual([])
-      const byGateway = groupBy(during, (post) => post.reading.gateway_id)
-      expect(byGateway.get('gw-demo-2')?.length ?? 0).toBeGreaterThanOrEqual(50)
-      expect(byGateway.get('gw-demo-3')?.length ?? 0).toBeGreaterThanOrEqual(50)
-    },
-  )
+    const during = sentReadings(http).filter(
+      (post) => post.at > OUTAGE_START + TICK_MS && post.at < OUTAGE_END - TICK_MS,
+    )
+    expect(during.filter((post) => post.reading.gateway_id === 'gw-demo-1')).toEqual([])
+    const byGateway = groupBy(during, (post) => post.reading.gateway_id)
+    expect(byGateway.get('gw-demo-2')?.length ?? 0).toBeGreaterThanOrEqual(50)
+    expect(byGateway.get('gw-demo-3')?.length ?? 0).toBeGreaterThanOrEqual(50)
+  })
 
-  it.fails(
-    'buffers the silent readings with their real event_times and sends them after reconnect',
-    async () => {
-      const { http, config } = await runFirstOutage()
+  it('buffers the silent readings with their real event_times and sends them after reconnect', async () => {
+    const { http, config } = await runFirstOutage()
 
-      const backlog = firstAttempts(backlogOf(sentReadings(http)))
-      const byDevice = groupBy(backlog, (post) => post.reading.device_id)
-      expect(byDevice.size).toBe(2)
-      byDevice.forEach((posts) => {
-        // 60 s of silence at one reading per 2 s.
-        expect(posts.length).toBeGreaterThanOrEqual(29)
-        expect(posts.length).toBeLessThanOrEqual(31)
-        posts.slice(1).forEach((post, index) => {
-          const gap = post.eventTimeMs - (posts[index]?.eventTimeMs ?? 0)
-          expect(gap).toBeGreaterThanOrEqual(config.intervalMs - TICK_MS)
-          expect(gap).toBeLessThanOrEqual(config.intervalMs + TICK_MS)
-        })
+    const backlog = firstAttempts(backlogOf(sentReadings(http)))
+    const byDevice = groupBy(backlog, (post) => post.reading.device_id)
+    expect(byDevice.size).toBe(2)
+    byDevice.forEach((posts) => {
+      // 60 s of silence at one reading per 2 s.
+      expect(posts.length).toBeGreaterThanOrEqual(29)
+      expect(posts.length).toBeLessThanOrEqual(31)
+      posts.slice(1).forEach((post, index) => {
+        const gap = post.eventTimeMs - (posts[index]?.eventTimeMs ?? 0)
+        expect(gap).toBeGreaterThanOrEqual(config.intervalMs - TICK_MS)
+        expect(gap).toBeLessThanOrEqual(config.intervalMs + TICK_MS)
       })
-      backlog.forEach((post) => {
-        expect(post.at).toBeGreaterThanOrEqual(OUTAGE_END - TICK_MS)
-      })
-    },
-  )
+    })
+    backlog.forEach((post) => {
+      expect(post.at).toBeGreaterThanOrEqual(OUTAGE_END - TICK_MS)
+    })
+  })
 
-  it.fails('keeps the per-(gateway, device) sequence contiguous across the outage', async () => {
+  it('keeps the per-(gateway, device) sequence contiguous across the outage', async () => {
     const { http } = await runFirstOutage()
 
     const gw1 = firstAttempts(sentReadings(http)).filter(
@@ -80,33 +74,30 @@ describe('simulator: outage and backlog episodes (rule 3)', () => {
     })
   })
 
-  it.fails(
-    'sends the backlog in its original order, interleaved with live traffic, within outageMs of reconnect',
-    async () => {
-      const { http } = await runFirstOutage()
+  it('sends the backlog in its original order, interleaved with live traffic, within outageMs of reconnect', async () => {
+    const { http } = await runFirstOutage()
 
-      const sent = sentReadings(http)
-      const backlog = firstAttempts(backlogOf(sent))
-      expect(backlog.length).toBeGreaterThanOrEqual(58)
+    const sent = sentReadings(http)
+    const backlog = firstAttempts(backlogOf(sent))
+    expect(backlog.length).toBeGreaterThanOrEqual(58)
 
-      const eventTimes = backlog.map((post) => post.eventTimeMs)
-      expect(eventTimes).toEqual([...eventTimes].sort((a, b) => a - b))
-      groupBy(backlog, (post) => post.reading.device_id).forEach((posts) => {
-        const sequences = posts.map((post) => post.reading.sequence)
-        expect(sequences).toEqual([...sequences].sort((a, b) => a - b))
-      })
+    const eventTimes = backlog.map((post) => post.eventTimeMs)
+    expect(eventTimes).toEqual([...eventTimes].sort((a, b) => a - b))
+    groupBy(backlog, (post) => post.reading.device_id).forEach((posts) => {
+      const sequences = posts.map((post) => post.reading.sequence)
+      expect(sequences).toEqual([...sequences].sort((a, b) => a - b))
+    })
 
-      const firstIndex = sent.indexOf(backlog[0] as SentReading)
-      const lastIndex = sent.indexOf(backlog[backlog.length - 1] as SentReading)
-      const liveDuringBacklog = sent
-        .slice(firstIndex, lastIndex)
-        .filter((post) => post.reading.gateway_id === 'gw-demo-1' && post.eventTimeMs >= OUTAGE_END)
-      expect(liveDuringBacklog.length).toBeGreaterThan(0)
-      expect(backlog[backlog.length - 1]?.at).toBeLessThanOrEqual(OUTAGE_END + OUTAGE.outageMs)
-    },
-  )
+    const firstIndex = sent.indexOf(backlog[0] as SentReading)
+    const lastIndex = sent.indexOf(backlog[backlog.length - 1] as SentReading)
+    const liveDuringBacklog = sent
+      .slice(firstIndex, lastIndex)
+      .filter((post) => post.reading.gateway_id === 'gw-demo-1' && post.eventTimeMs >= OUTAGE_END)
+    expect(liveDuringBacklog.length).toBeGreaterThan(0)
+    expect(backlog[backlog.length - 1]?.at).toBeLessThanOrEqual(OUTAGE_END + OUTAGE.outageMs)
+  })
 
-  it.fails('resends about 1 in 4 backlog readings byte-identically', async () => {
+  it('resends about 1 in 4 backlog readings byte-identically', async () => {
     const seeds = [1, 2, 3, 4, 5, 6]
     const runs = await Promise.all(seeds.map((seed) => runFirstOutage(seed)))
 
@@ -130,26 +121,23 @@ describe('simulator: outage and backlog episodes (rule 3)', () => {
     expect(totals.resent / totals.readings).toBeLessThanOrEqual(0.33)
   })
 
-  it.fails(
-    'never sends two different bodies for the same reading key, and resends only backlog',
-    async () => {
-      const { http } = await runFirstOutage()
+  it('never sends two different bodies for the same reading key, and resends only backlog', async () => {
+    const { http } = await runFirstOutage()
 
-      const sent = sentReadings(http)
-      groupBy(sent, readingKey).forEach((posts) => {
-        expect(new Set(posts.map((post) => post.body)).size).toBe(1)
-      })
-      const backlogBodies = new Set(backlogOf(sent).map((post) => post.body))
-      groupBy(
-        sent.filter((post) => !backlogBodies.has(post.body)),
-        (post) => post.body,
-      ).forEach((posts) => {
-        expect(posts).toHaveLength(1)
-      })
-    },
-  )
+    const sent = sentReadings(http)
+    groupBy(sent, readingKey).forEach((posts) => {
+      expect(new Set(posts.map((post) => post.body)).size).toBe(1)
+    })
+    const backlogBodies = new Set(backlogOf(sent).map((post) => post.body))
+    groupBy(
+      sent.filter((post) => !backlogBodies.has(post.body)),
+      (post) => post.body,
+    ).forEach((posts) => {
+      expect(posts).toHaveLength(1)
+    })
+  })
 
-  it.fails('picks the silent gateway round robin', async () => {
+  it('picks the silent gateway round robin', async () => {
     const { simulator, clock, http } = createHarness({
       intervalMs: 1000,
       outageEveryMs: 10_000,

@@ -73,6 +73,8 @@ What was deliberately left out, and why. Each item says what breaks and what wou
   supported path is `docker compose up`. It has no monitoring, backups or spend limit. It
   doesn't set `FUTURE_SKEW_MS` or `CLOCK_SKEW_THRESHOLD_MS`, so their defaults of 60000
   apply.
+- **The demo simulator is opt-in and demo-only.** It runs only under the compose profile
+  `demo`, isn't a load generator, and its devices stay in the database until it's wiped.
 - **No load or soak testing.** The scenarios and integration tests prove correctness, not
   throughput.
 

@@ -15,6 +15,7 @@ COPY packages/test-harness/package.json packages/test-harness/
 COPY apps/api/package.json apps/api/
 COPY apps/consumer/package.json apps/consumer/
 COPY apps/web/package.json apps/web/
+COPY apps/simulator/package.json apps/simulator/
 RUN npm ci --no-audit --no-fund
 
 FROM deps AS source
@@ -32,6 +33,10 @@ CMD ["node", "--import", "tsx", "apps/api/src/main.ts"]
 
 FROM source AS consumer
 CMD ["node", "--import", "tsx", "apps/consumer/src/main.ts"]
+
+# Opt-in demo traffic (docker compose --profile demo); never part of the default stack.
+FROM source AS simulator
+CMD ["node", "--import", "tsx", "apps/simulator/src/main.ts"]
 
 FROM source AS web-build
 RUN npm run build -w @telemetry/web

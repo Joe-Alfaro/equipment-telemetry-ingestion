@@ -20,30 +20,27 @@ function repoFile(name: string): string {
 const compose = parse(repoFile('docker-compose.yml')) as ComposeFile
 
 describe('docker-compose: simulator service (rule 7)', () => {
-  it.fails('puts the simulator under profiles ["demo"] only', () => {
+  it('puts the simulator under profiles ["demo"] only', () => {
     expect(compose.services.simulator).toBeDefined()
     expect(compose.services.simulator?.profiles).toEqual(['demo'])
   })
 
-  it.fails(
-    'leaves every other service without a profile, so plain `docker compose up` is unchanged',
-    () => {
-      const profiled = Object.entries(compose.services)
-        .filter(([name, service]) => name !== 'simulator' && service.profiles !== undefined)
-        .map(([name]) => name)
+  it('leaves every other service without a profile, so plain `docker compose up` is unchanged', () => {
+    const profiled = Object.entries(compose.services)
+      .filter(([name, service]) => name !== 'simulator' && service.profiles !== undefined)
+      .map(([name]) => name)
 
-      expect(Object.keys(compose.services)).toContain('simulator')
-      expect(profiled).toEqual([])
-    },
-  )
+    expect(Object.keys(compose.services)).toContain('simulator')
+    expect(profiled).toEqual([])
+  })
 
-  it.fails('starts the simulator only once the api is healthy', () => {
+  it('starts the simulator only once the api is healthy', () => {
     const dependsOn = compose.services.simulator?.depends_on
 
     expect(dependsOn).toMatchObject({ api: { condition: 'service_healthy' } })
   })
 
-  it.fails('builds the simulator from the Dockerfile with a simulator target', () => {
+  it('builds the simulator from the Dockerfile with a simulator target', () => {
     const build = compose.services.simulator?.build
     const args = Array.isArray(build?.args)
       ? Object.fromEntries(build.args.map((arg) => arg.split('=')))

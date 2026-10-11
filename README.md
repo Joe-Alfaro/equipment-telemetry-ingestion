@@ -130,6 +130,51 @@ SELECT (SELECT count(DISTINCT device_id) FROM readings) AS seen,
        (SELECT count(*) FROM devices) AS registered_once;
 ```
 
+## Demo simulator
+
+An optional service that keeps the dashboard moving on its own for demos. It is under the
+compose profile `demo`, so plain `docker compose up` never starts it and the scenarios and
+SQL checks above see a quiet database. Start it with:
+
+```sh
+docker compose --profile demo up --build
+```
+
+It POSTs to the api through the normal ingest path (`API_URL`, default `http://api:8080`):
+
+- **Steady traffic.** Gateways `gw-demo-1`..`3`, each with 2 devices (`demo-1-1` ..
+  `demo-3-2`). Each device sends one reading every `SIM_INTERVAL_MS`, cycling through
+  `temperature` (15–90), `vibration` (0–10), `power_draw` (0–50) and `status` (0/1, changing
+  rarely). Values are a bounded random walk; `sequence` counts per (gateway, device) from 0.
+- **Outages.** Every `SIM_OUTAGE_EVERY_MS` one gateway, in turn, goes silent for
+  `SIM_OUTAGE_MS` and buffers its readings. Its devices show **possibly behind**. On
+  reconnect it sends the backlog in order, interleaved with live readings, so those readings
+  are flagged `Late`, and it resends about 1 in 4 of them byte for byte; the resends are
+  deduplicated.
+- **New devices.** Every `SIM_NEW_DEVICE_EVERY_MS` two different demo gateways report the
+  same brand-new device (`demo-new-<n>`) within 100 ms. It lands in **New devices** once.
+  At most `SIM_MAX_NEW_DEVICES` per run.
+- A network error or 5xx is logged and retried with the same body; a 4xx is logged and
+  dropped. It waits for the api if it isn't up yet, and stops cleanly on SIGTERM.
+
+| Variable                  | Default           | What                                         |
+| ------------------------- | ----------------- | -------------------------------------------- |
+| `API_URL`                 | `http://api:8080` | Base URL of the api                          |
+| `SIM_INTERVAL_MS`         | `2000`            | One reading per device this often            |
+| `SIM_OUTAGE_EVERY_MS`     | `300000`          | One gateway goes silent this often           |
+| `SIM_OUTAGE_MS`           | `60000`           | Length of each outage                        |
+| `SIM_NEW_DEVICE_EVERY_MS` | `600000`          | A new device races onto two gateways         |
+| `SIM_MAX_NEW_DEVICES`     | `10`              | Most new devices per run                     |
+| `SIM_SEED`                | random            | Seed for values, resends and gateway choices |
+
+Compose passes these through from the shell, so shorter episodes are, for example,
+`SIM_OUTAGE_EVERY_MS=60000 SIM_OUTAGE_MS=45000 SIM_NEW_DEVICE_EVERY_MS=40000 docker compose --profile demo up --build`.
+Keep `SIM_OUTAGE_MS` above `LATE_THRESHOLD_MS` (30 s): a shorter outage shows neither
+**possibly behind** nor `Late`. Demo devices start in **New devices**; claim one to see its
+values move on the **Equipment** board.
+Stop it alone with `docker compose --profile demo stop simulator`. The demo devices stay in
+the database until `docker compose down -v`.
+
 ## Read API
 
 | Method and path                                | Returns                                                                   |
@@ -221,6 +266,7 @@ boundary by MSW and a fake `EventSource` for SSE.
 | `apps/api`               | Fastify server: `POST /ingest/readings` (publishes with confirms, then 202), read API, SSE |
 | `apps/consumer`          | RabbitMQ consumer: one transaction per reading, ack after commit, dead-letters bad input   |
 | `apps/web`               | Vite + React dashboard (nginx in Docker, proxies `/api`)                                   |
+| `apps/simulator`         | Opt-in demo traffic (compose profile `demo`): steady readings, outages, new-device races   |
 | `packages/shared`        | Wire and read-API types, ingest validation                                                 |
 | `packages/db`            | SQL migrations, migration runner, processing and read queries                              |
 | `packages/broker`        | RabbitMQ connection, durable queue, confirm-channel publisher                              |

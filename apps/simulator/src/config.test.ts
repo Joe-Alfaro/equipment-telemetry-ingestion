@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { loadSimulatorConfig } from './config'
 
 describe('simulator config (rules 1-4, 6)', () => {
-  it.fails('uses the documented defaults', () => {
+  it('uses the documented defaults', () => {
     expect(loadSimulatorConfig({})).toMatchObject({
       apiUrl: 'http://api:8080',
       intervalMs: 2000,
@@ -13,7 +13,7 @@ describe('simulator config (rules 1-4, 6)', () => {
     })
   })
 
-  it.fails('reads every setting from the environment', () => {
+  it('reads every setting from the environment', () => {
     expect(
       loadSimulatorConfig({
         API_URL: 'http://localhost:8080',
@@ -35,7 +35,7 @@ describe('simulator config (rules 1-4, 6)', () => {
     })
   })
 
-  it.fails('picks a random seed when SIM_SEED is unset', () => {
+  it('picks a random seed when SIM_SEED is unset', () => {
     const a = loadSimulatorConfig({}).seed
     const b = loadSimulatorConfig({}).seed
 

@@ -6,7 +6,7 @@ const GATEWAYS = ['gw-demo-1', 'gw-demo-2', 'gw-demo-3']
 const TICK_MS = 100
 
 describe('simulator: steady traffic (rule 2)', () => {
-  it.fails('POSTs every reading to ${apiUrl}/ingest/readings', async () => {
+  it('POSTs every reading to ${apiUrl}/ingest/readings', async () => {
     const { simulator, clock, http, config } = createHarness()
 
     await runFor(simulator, clock, 10_000)
@@ -17,60 +17,54 @@ describe('simulator: steady traffic (rule 2)', () => {
     })
   })
 
-  it.fails(
-    'runs 3 demo gateways with 2 demo devices each, each device on exactly one gateway',
-    async () => {
-      const { simulator, clock, http } = createHarness()
+  it('runs 3 demo gateways with 2 demo devices each, each device on exactly one gateway', async () => {
+    const { simulator, clock, http } = createHarness()
 
-      await runFor(simulator, clock, 60_000)
+    await runFor(simulator, clock, 60_000)
 
-      const sent = sentReadings(http)
-      expect(new Set(sent.map((post) => post.reading.gateway_id))).toEqual(new Set(GATEWAYS))
+    const sent = sentReadings(http)
+    expect(new Set(sent.map((post) => post.reading.gateway_id))).toEqual(new Set(GATEWAYS))
 
-      const byDevice = groupBy(sent, (post) => post.reading.device_id)
-      const deviceIds = [...byDevice.keys()]
-      expect(deviceIds).toHaveLength(6)
-      deviceIds.forEach((deviceId) => {
-        expect(deviceId).toMatch(/^demo-/)
-        expect(isNewDevice(deviceId)).toBe(false)
-        const gateways = new Set(byDevice.get(deviceId)?.map((post) => post.reading.gateway_id))
-        expect(gateways.size).toBe(1)
+    const byDevice = groupBy(sent, (post) => post.reading.device_id)
+    const deviceIds = [...byDevice.keys()]
+    expect(deviceIds).toHaveLength(6)
+    deviceIds.forEach((deviceId) => {
+      expect(deviceId).toMatch(/^demo-/)
+      expect(isNewDevice(deviceId)).toBe(false)
+      const gateways = new Set(byDevice.get(deviceId)?.map((post) => post.reading.gateway_id))
+      expect(gateways.size).toBe(1)
+    })
+
+    const byGateway = groupBy(sent, (post) => post.reading.gateway_id)
+    GATEWAYS.forEach((gatewayId) => {
+      const devices = new Set(byGateway.get(gatewayId)?.map((post) => post.reading.device_id))
+      expect(devices.size).toBe(2)
+    })
+  })
+
+  it('sends one reading per device every intervalMs, stamped with the current time', async () => {
+    const { simulator, clock, http, config } = createHarness({ intervalMs: 2000 })
+
+    await runFor(simulator, clock, 60_000, TICK_MS)
+
+    const sent = sentReadings(http)
+    sent.forEach((post) => {
+      expect(Math.abs(post.eventTimeMs - post.at)).toBeLessThanOrEqual(TICK_MS)
+      expect(post.eventTimeMs).toBeGreaterThanOrEqual(T0)
+    })
+
+    groupBy(sent, (post) => post.reading.device_id).forEach((posts) => {
+      expect(posts.length).toBeGreaterThanOrEqual(29)
+      expect(posts.length).toBeLessThanOrEqual(31)
+      posts.slice(1).forEach((post, index) => {
+        const gap = post.eventTimeMs - (posts[index]?.eventTimeMs ?? 0)
+        expect(gap).toBeGreaterThanOrEqual(config.intervalMs - TICK_MS)
+        expect(gap).toBeLessThanOrEqual(config.intervalMs + TICK_MS)
       })
+    })
+  })
 
-      const byGateway = groupBy(sent, (post) => post.reading.gateway_id)
-      GATEWAYS.forEach((gatewayId) => {
-        const devices = new Set(byGateway.get(gatewayId)?.map((post) => post.reading.device_id))
-        expect(devices.size).toBe(2)
-      })
-    },
-  )
-
-  it.fails(
-    'sends one reading per device every intervalMs, stamped with the current time',
-    async () => {
-      const { simulator, clock, http, config } = createHarness({ intervalMs: 2000 })
-
-      await runFor(simulator, clock, 60_000, TICK_MS)
-
-      const sent = sentReadings(http)
-      sent.forEach((post) => {
-        expect(Math.abs(post.eventTimeMs - post.at)).toBeLessThanOrEqual(TICK_MS)
-        expect(post.eventTimeMs).toBeGreaterThanOrEqual(T0)
-      })
-
-      groupBy(sent, (post) => post.reading.device_id).forEach((posts) => {
-        expect(posts.length).toBeGreaterThanOrEqual(29)
-        expect(posts.length).toBeLessThanOrEqual(31)
-        posts.slice(1).forEach((post, index) => {
-          const gap = post.eventTimeMs - (posts[index]?.eventTimeMs ?? 0)
-          expect(gap).toBeGreaterThanOrEqual(config.intervalMs - TICK_MS)
-          expect(gap).toBeLessThanOrEqual(config.intervalMs + TICK_MS)
-        })
-      })
-    },
-  )
-
-  it.fails('cycles each device through temperature, vibration, power_draw and status', async () => {
+  it('cycles each device through temperature, vibration, power_draw and status', async () => {
     const { simulator, clock, http } = createHarness()
 
     await runFor(simulator, clock, 60_000)
@@ -92,7 +86,7 @@ describe('simulator: values (rule 2)', () => {
     power_draw: { min: 0, max: 50 },
   }
 
-  it.fails('keeps each metric in its realistic range over an hour', async () => {
+  it('keeps each metric in its realistic range over an hour', async () => {
     const { simulator, clock, http } = createHarness({ intervalMs: 2000 })
 
     await runFor(simulator, clock, 3_600_000, 1000)
@@ -111,33 +105,30 @@ describe('simulator: values (rule 2)', () => {
     })
   })
 
-  it.fails(
-    'moves each continuous metric as a bounded random walk per (device, metric)',
-    async () => {
-      const { simulator, clock, http } = createHarness({ intervalMs: 2000 })
+  it('moves each continuous metric as a bounded random walk per (device, metric)', async () => {
+    const { simulator, clock, http } = createHarness({ intervalMs: 2000 })
 
-      await runFor(simulator, clock, 3_600_000, 1000)
+    await runFor(simulator, clock, 3_600_000, 1000)
 
-      const series = groupBy(
-        sentReadings(http).filter(({ reading }) => reading.metric !== 'status'),
-        (post) => `${post.reading.device_id}|${post.reading.metric}`,
-      )
-      expect(series.size).toBe(6 * 3)
-      series.forEach((posts) => {
-        const { metric } = posts[0]?.reading ?? { metric: '' }
-        const bounds = BOUNDS[metric] ?? { min: 0, max: 0 }
-        const maxStep = (bounds.max - bounds.min) * 0.25
-        const values = posts.map((post) => post.reading.value)
-        // A walk, not a constant and not white noise across the whole range.
-        expect(new Set(values).size).toBeGreaterThan(10)
-        values.slice(1).forEach((value, index) => {
-          expect(Math.abs(value - (values[index] ?? value))).toBeLessThanOrEqual(maxStep)
-        })
+    const series = groupBy(
+      sentReadings(http).filter(({ reading }) => reading.metric !== 'status'),
+      (post) => `${post.reading.device_id}|${post.reading.metric}`,
+    )
+    expect(series.size).toBe(6 * 3)
+    series.forEach((posts) => {
+      const { metric } = posts[0]?.reading ?? { metric: '' }
+      const bounds = BOUNDS[metric] ?? { min: 0, max: 0 }
+      const maxStep = (bounds.max - bounds.min) * 0.25
+      const values = posts.map((post) => post.reading.value)
+      // A walk, not a constant and not white noise across the whole range.
+      expect(new Set(values).size).toBeGreaterThan(10)
+      values.slice(1).forEach((value, index) => {
+        expect(Math.abs(value - (values[index] ?? value))).toBeLessThanOrEqual(maxStep)
       })
-    },
-  )
+    })
+  })
 
-  it.fails('changes status rarely', async () => {
+  it('changes status rarely', async () => {
     const { simulator, clock, http } = createHarness({ intervalMs: 2000 })
 
     await runFor(simulator, clock, 3_600_000, 1000)
@@ -155,7 +146,7 @@ describe('simulator: values (rule 2)', () => {
 })
 
 describe('simulator: sequence counters (rule 2)', () => {
-  it.fails('counts sequence per (gateway, device) from 0 in send order', async () => {
+  it('counts sequence per (gateway, device) from 0 in send order', async () => {
     const { simulator, clock, http } = createHarness()
 
     await runFor(simulator, clock, 60_000)
@@ -170,7 +161,7 @@ describe('simulator: sequence counters (rule 2)', () => {
     })
   })
 
-  it.fails('starts again from 0 in a new process', async () => {
+  it('starts again from 0 in a new process', async () => {
     const first = createHarness()
     await runFor(first.simulator, first.clock, 10_000)
     const second = createHarness()
@@ -184,7 +175,7 @@ describe('simulator: sequence counters (rule 2)', () => {
 })
 
 describe('simulator: deterministic core (rule 6)', () => {
-  it.fails('produces identical bodies for the same seed and clock', async () => {
+  it('produces identical bodies for the same seed and clock', async () => {
     const a = createHarness({}, { seed: 42 })
     const b = createHarness({}, { seed: 42 })
 
@@ -195,7 +186,7 @@ describe('simulator: deterministic core (rule 6)', () => {
     expect(b.http.posts.map((post) => post.body)).toEqual(a.http.posts.map((post) => post.body))
   })
 
-  it.fails('produces different values for a different seed', async () => {
+  it('produces different values for a different seed', async () => {
     const a = createHarness({}, { seed: 42 })
     const b = createHarness({}, { seed: 43 })
 
