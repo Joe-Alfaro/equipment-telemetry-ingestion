@@ -118,6 +118,36 @@ SELECT (SELECT count(DISTINCT device_id) FROM readings) AS seen,
 | `GET /api/gateways`                            | `lastSeenAt` and `stale` per gateway                            |
 | `GET /api/stream`                              | Server-sent events: device updated/discovered/claimed, gateway  |
 
+## Deployment
+
+A live copy runs on Railway:
+
+- Dashboard: https://web-production-6ac10.up.railway.app
+- API (generator target): https://api-production-1751.up.railway.app
+
+```sh
+python3 telemetry_generator.py --target https://api-production-1751.up.railway.app --scenario clean
+```
+
+The Railway project has five services. They talk over Railway's private network. Only api
+and web have public domains.
+
+| Service    | Source                                    | Notes                                                             |
+| ---------- | ----------------------------------------- | ----------------------------------------------------------------- |
+| `Postgres` | Railway managed Postgres                  | No public TCP proxy                                               |
+| `rabbitmq` | `rabbitmq:4-management-alpine` + a volume | `RABBITMQ_NODENAME=rabbit@localhost` keeps the data dir stable    |
+| `api`      | this repo, `SERVICE_TARGET=api`           | Pre-deploy runs the migrations; healthcheck `/healthz`; `HOST=::` |
+| `consumer` | this repo, `SERVICE_TARGET=consumer`      |                                                                   |
+| `web`      | this repo, `SERVICE_TARGET=web`           | `API_UPSTREAM=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8080`        |
+
+- Railway builds the Dockerfile's final `selected` stage. The `SERVICE_TARGET` build arg
+  picks the service. Compose still uses `target:`.
+- The api pre-deploy command is `node --import tsx packages/db/src/migrate-cli.ts`.
+- `DATABASE_URL` and `AMQP_URL` are Railway reference variables, for example
+  `${{Postgres.DATABASE_URL}}`. Credentials live only in Railway, never in this repo.
+- The nginx `/api` upstream comes from `API_UPSTREAM`, through the nginx image's template
+  envsubst. It defaults to `http://api:8080`, so `docker compose up` is unchanged.
+
 ## Tests
 
 Requires Node 22+ and npm.
