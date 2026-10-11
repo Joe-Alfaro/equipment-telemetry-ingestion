@@ -1,0 +1,103 @@
+# `docker compose up --build` brings up the whole system from a clean checkout.
+#   api:        http://localhost:8080  (POST /ingest/readings, the generator's default target)
+#   web:        http://localhost:3000
+#   rabbitmq:   http://localhost:15672 (management UI, telemetry / telemetry)
+#   postgres:   not published; use `docker compose exec postgres psql -U telemetry`
+
+x-node-env: &node-env
+  DATABASE_URL: postgres://telemetry:telemetry@postgres:5432/telemetry
+  AMQP_URL: amqp://telemetry:telemetry@rabbitmq:5672
+  READINGS_QUEUE: readings
+  LATE_THRESHOLD_MS: '30000'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: telemetry
+      POSTGRES_PASSWORD: telemetry
+      POSTGRES_DB: telemetry
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U telemetry -d telemetry']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    # A fixed hostname keeps the node name stable, so durable queues survive restarts.
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: telemetry
+      RABBITMQ_DEFAULT_PASS: telemetry
+    ports:
+      - '15672:15672'
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_port_connectivity']
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment: *node-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      target: api
+    init: true
+    environment:
+      <<: *node-env
+      PORT: '8080'
+    ports:
+      - '8080:8080'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  consumer:
+    build:
+      context: .
+      target: consumer
+    init: true
+    environment: *node-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - '3000:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  rabbitdata:

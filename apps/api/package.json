@@ -1,0 +1,22 @@
+{
+  "name": "@telemetry/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@telemetry/broker": "*",
+    "@telemetry/db": "*",
+    "@telemetry/shared": "*",
+    "fastify": "^5.12.5",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@telemetry/test-harness": "*"
+  }
+}

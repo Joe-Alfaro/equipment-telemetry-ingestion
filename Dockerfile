@@ -1,0 +1,37 @@
+# One Dockerfile, one target per service. TypeScript runs through tsx, so there is
+# no separate compile step for the Node services.
+
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/db/package.json packages/db/
+COPY packages/broker/package.json packages/broker/
+COPY packages/test-harness/package.json packages/test-harness/
+COPY apps/api/package.json apps/api/
+COPY apps/consumer/package.json apps/consumer/
+COPY apps/web/package.json apps/web/
+RUN npm ci --no-audit --no-fund
+
+FROM deps AS source
+COPY tsconfig.base.json ./
+COPY packages packages
+COPY apps apps
+
+FROM source AS migrate
+CMD ["node", "--import", "tsx", "packages/db/src/migrate-cli.ts"]
+
+FROM source AS api
+ENV PORT=8080
+EXPOSE 8080
+CMD ["node", "--import", "tsx", "apps/api/src/main.ts"]
+
+FROM source AS consumer
+CMD ["node", "--import", "tsx", "apps/consumer/src/main.ts"]
+
+FROM source AS web-build
+RUN npm run build -w @telemetry/web
+
+FROM nginx:1.27-alpine AS web
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html

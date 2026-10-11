@@ -1,0 +1,21 @@
+{
+  "name": "@telemetry/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "migrate": "tsx src/migrate-cli.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
+  }
+}
