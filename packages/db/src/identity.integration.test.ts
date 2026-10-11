@@ -159,7 +159,15 @@ describe('migration 003: identity gains metric (rule 1)', () => {
     return rows.map((r) => r.row)
   }
 
-  async function snapshotAll(): Promise<Record<string, unknown[]>> {
+  interface Snapshot {
+    devices: unknown[]
+    gateways: unknown[]
+    readings: unknown[]
+    current_state: unknown[]
+    reading_conflicts: unknown[]
+  }
+
+  async function snapshotAll(): Promise<Snapshot> {
     return {
       devices: await snapshot('devices', 'device_id'),
       gateways: await snapshot('gateways', 'gateway_id'),
