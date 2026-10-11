@@ -238,7 +238,11 @@ describe('migration 003: identity gains metric (rule 1)', () => {
 
       expect(applied).toHaveLength(1)
       expect(applied[0]).toMatch(/^003_.*\.sql$/)
-      expect(await snapshotAll()).toEqual(before)
+      // 003 also adds readings.future (rule 4); existing rows get false and nothing else changes.
+      expect(await snapshotAll()).toEqual({
+        ...before,
+        readings: before.readings.map((row) => Object.assign({}, row, { future: false })),
+      })
 
       const { rows } = await legacyPool().query<{ columns: string[] }>(
         `SELECT array_agg(a.attname::text ORDER BY a.attname) AS columns
