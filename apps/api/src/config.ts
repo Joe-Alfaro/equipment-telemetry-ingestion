@@ -5,6 +5,8 @@ export interface ApiConfig {
   amqpUrl: string
   readingsQueue: string
   lateThresholdMs: number
+  /** CLOCK_SKEW_THRESHOLD_MS: a gateway clock is `ahead` past this median skew. Default 60000. */
+  clockSkewThresholdMs?: number
 }
 
 function required(name: string): string {

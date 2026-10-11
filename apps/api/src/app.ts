@@ -12,6 +12,8 @@ export interface AppDeps {
   now?: () => Date
   /** Gateway staleness threshold for the read API (`possiblyBehind`, `stale`). Default 30000. */
   lateThresholdMs?: number
+  /** Gateway clock `ahead` threshold for the read API (`clock`, `clockWarnings`). Default 60000. */
+  clockSkewThresholdMs?: number
   /** Minimum interval between relayed gateway-updated events per gateway. Default 1000. */
   gatewayEventIntervalMs?: number
   logger?: FastifyServerOptions['logger']

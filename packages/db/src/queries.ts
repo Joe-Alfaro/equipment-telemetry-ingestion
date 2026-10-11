@@ -13,6 +13,8 @@ export interface ReadOptions {
   /** Reference time for gateway staleness: stale when now - last_seen_at > lateThresholdMs. */
   now: Date
   lateThresholdMs: number
+  /** Gateway clock `ahead` threshold (GatewaySummary.clock, DeviceSummary.clockWarnings). Default 60000. */
+  clockSkewThresholdMs?: number
 }
 
 export interface ListDevicesOptions extends ReadOptions {
