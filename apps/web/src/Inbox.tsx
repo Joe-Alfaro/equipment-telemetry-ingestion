@@ -2,6 +2,7 @@ import type { DeviceSummary } from '@telemetry/shared'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import { claimDevice, devicesUrl, fetchDevices } from './api'
+import { PossiblyBehindBadge } from './Board'
 import { formatTimestamp } from './format'
 import { useFetch } from './useFetch'
 
@@ -9,10 +10,11 @@ interface InboxProps {
   version: number
   /** A claim settled (either way), so both lists need a refresh. */
   onClaimSettled(): void
+  onViewHistory(device: DeviceSummary): void
 }
 
 /** Unregistered devices that have started reporting, each with a Claim form. */
-export function Inbox({ version, onClaimSettled }: InboxProps) {
+export function Inbox({ version, onClaimSettled, onViewHistory }: InboxProps) {
   const headingId = useId()
   const { data, failed, loading } = useFetch(devicesUrl('unregistered'), version, fetchDevices)
   const [notice, setNotice] = useState<string | null>(null)
@@ -51,6 +53,7 @@ export function Inbox({ version, onClaimSettled }: InboxProps) {
                 device={device}
                 onClaimed={handleClaimed}
                 onAlreadyClaimed={handleAlreadyClaimed}
+                onViewHistory={onViewHistory}
               />
             </li>
           ))}
@@ -64,9 +67,10 @@ interface ClaimCardProps {
   device: DeviceSummary
   onClaimed(device: DeviceSummary): void
   onAlreadyClaimed(device: DeviceSummary): void
+  onViewHistory(device: DeviceSummary): void
 }
 
-function ClaimCard({ device, onClaimed, onAlreadyClaimed }: ClaimCardProps) {
+function ClaimCard({ device, onClaimed, onAlreadyClaimed, onViewHistory }: ClaimCardProps) {
   const headingId = useId()
   const inputId = useId()
   const [name, setName] = useState('')
@@ -106,7 +110,10 @@ function ClaimCard({ device, onClaimed, onAlreadyClaimed }: ClaimCardProps) {
 
   return (
     <article aria-labelledby={headingId} className="card">
-      <h3 id={headingId}>{device.deviceId}</h3>
+      <header className="card-header">
+        <h3 id={headingId}>{device.deviceId}</h3>
+        {device.possiblyBehind && <PossiblyBehindBadge />}
+      </header>
       <p className="muted small">
         First seen <time dateTime={device.firstSeenAt}>{formatTimestamp(device.firstSeenAt)}</time>{' '}
         via {device.firstSeenGatewayId}
@@ -132,6 +139,9 @@ function ClaimCard({ device, onClaimed, onAlreadyClaimed }: ClaimCardProps) {
           {error}
         </p>
       )}
+      <button type="button" aria-describedby={headingId} onClick={() => onViewHistory(device)}>
+        View history
+      </button>
     </article>
   )
 }

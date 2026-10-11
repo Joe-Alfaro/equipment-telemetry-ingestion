@@ -5,7 +5,7 @@ import { findRegion, renderApp } from './test/renderApp'
 
 // Decided rule 6: inbox cards show "Possibly behind" and open the same Device detail as the board.
 describe('New devices inbox: staleness and history', () => {
-  it.fails('badges an unregistered device as possibly behind only when it is', async () => {
+  it('badges an unregistered device as possibly behind only when it is', async () => {
     installFakeApi({
       devices: [
         unregisteredDevice('dev-2', { possiblyBehind: true }),
@@ -22,7 +22,7 @@ describe('New devices inbox: staleness and history', () => {
     expect(within(current).queryByText(/^possibly behind$/i)).not.toBeInTheDocument()
   })
 
-  it.fails('opens the device detail with its reading history from an inbox card', async () => {
+  it('opens the device detail with its reading history from an inbox card', async () => {
     installFakeApi({
       devices: [unregisteredDevice('dev-2'), unregisteredDevice('dev-4')],
       readings: [

@@ -16,10 +16,10 @@ interface DeviceDetailProps {
 }
 
 function readingKey(reading: Reading) {
-  return `${reading.gatewayId}|${reading.sequence}|${reading.eventTime}`
+  return `${reading.gatewayId}|${reading.metric}|${reading.sequence}|${reading.eventTime}`
 }
 
-/** Reading history for one device, with the late and out-of-order flags. */
+/** Reading history for one device, with the late, out-of-order and future flags. */
 export function DeviceDetail({ device, version, onClose }: DeviceDetailProps) {
   const headingId = useId()
   const nameRef = useRef<HTMLHeadingElement>(null)
@@ -80,6 +80,14 @@ export function DeviceDetail({ device, version, onClose }: DeviceDetailProps) {
                   <td>
                     {reading.late && <span className="badge badge-warning">Late</span>}
                     {reading.outOfOrder && <span className="badge badge-info">Out of order</span>}
+                    {reading.future && (
+                      <span
+                        className="badge badge-warning"
+                        title="The event time was ahead of the server clock when this reading was processed."
+                      >
+                        Future timestamp
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
