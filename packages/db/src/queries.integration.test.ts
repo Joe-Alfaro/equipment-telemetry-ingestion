@@ -61,27 +61,40 @@ afterEach(async () => {
 })
 
 describe('listGateways: staleness', () => {
-  it('is fresh at exactly the threshold and stale 1 ms past it, ordered by gatewayId', async () => {
-    await seed([
-      { gateway_id: 'gw-b', device_id: 'd', receivedAt: isoAt(BASE, 0) },
-      { gateway_id: 'gw-a', device_id: 'd', receivedAt: isoAt(BASE, 1) },
-    ])
+  it.fails(
+    'is fresh at exactly the threshold and stale 1 ms past it, ordered by gatewayId',
+    async () => {
+      await seed([
+        { gateway_id: 'gw-b', device_id: 'd', receivedAt: isoAt(BASE, 0) },
+        { gateway_id: 'gw-a', device_id: 'd', receivedAt: isoAt(BASE, 1) },
+      ])
 
-    const gateways = await listGateways(pool(), {
-      now: dateAt(BASE, THRESHOLD + 1),
-      lateThresholdMs: THRESHOLD,
-    })
+      const gateways = await listGateways(pool(), {
+        now: dateAt(BASE, THRESHOLD + 1),
+        lateThresholdMs: THRESHOLD,
+      })
 
-    const expected: GatewaySummary[] = [
-      { gatewayId: 'gw-a', lastSeenAt: isoAt(BASE, 1), stale: false },
-      { gatewayId: 'gw-b', lastSeenAt: isoAt(BASE, 0), stale: true },
-    ]
-    expect(gateways).toStrictEqual(expected)
-  })
+      const expected: GatewaySummary[] = [
+        {
+          gatewayId: 'gw-a',
+          lastSeenAt: isoAt(BASE, 1),
+          stale: false,
+          clock: { status: 'unknown', offsetMs: null, samples: 1 },
+        },
+        {
+          gatewayId: 'gw-b',
+          lastSeenAt: isoAt(BASE, 0),
+          stale: true,
+          clock: { status: 'unknown', offsetMs: null, samples: 1 },
+        },
+      ]
+      expect(gateways).toStrictEqual(expected)
+    },
+  )
 })
 
 describe('listDevices / getDevice', () => {
-  it('returns DeviceSummary objects with exactly the shared contract fields', async () => {
+  it.fails('returns DeviceSummary objects with exactly the shared contract fields', async () => {
     await seed([
       {
         gateway_id: 'gw-b',
@@ -144,6 +157,7 @@ describe('listDevices / getDevice', () => {
             updatedAt: isoAt(BASE, 1_000),
           },
         },
+        clockWarnings: [],
       },
       {
         deviceId: 'dev-1',
@@ -169,6 +183,7 @@ describe('listDevices / getDevice', () => {
             updatedAt: isoAt(BASE, 1_000),
           },
         },
+        clockWarnings: [],
       },
     ]
     expect(devices).toStrictEqual(expected)

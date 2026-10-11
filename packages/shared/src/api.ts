@@ -23,10 +23,9 @@ export interface DeviceSummary {
   metrics: Record<string, MetricState>
   /**
    * One entry per gateway that has reported this device and whose clock status is `ahead` or
-   * `local-time`, ordered by gatewayId; empty when there are none. Optional until the clock check
-   * lands (existing literals predate it); the api always sends it.
+   * `local-time`, ordered by gatewayId; empty when there are none.
    */
-  clockWarnings?: ClockWarning[]
+  clockWarnings: ClockWarning[]
 }
 
 /** GET /api/devices/:deviceId/readings returns Reading[] ordered by eventTime. */
@@ -79,8 +78,7 @@ export interface GatewaySummary {
   gatewayId: string
   lastSeenAt: string
   stale: boolean
-  /** Optional until the clock check lands (existing literals predate it); the api always sends it. */
-  clock?: GatewayClock
+  clock: GatewayClock
 }
 
 export interface ApiError {

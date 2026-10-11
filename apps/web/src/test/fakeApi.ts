@@ -35,6 +35,7 @@ export function registeredDevice(
     gateways: ['gw-1'],
     possiblyBehind: false,
     metrics: {},
+    clockWarnings: [],
     ...overrides,
   }
 }
@@ -52,6 +53,20 @@ export function unregisteredDevice(
     gateways: ['gw-1'],
     possiblyBehind: false,
     metrics: {},
+    clockWarnings: [],
+    ...overrides,
+  }
+}
+
+export function gatewaySummary(
+  gatewayId: string,
+  overrides: Partial<GatewaySummary> = {},
+): GatewaySummary {
+  return {
+    gatewayId,
+    lastSeenAt: '2026-10-10T11:59:50.000Z',
+    stale: false,
+    clock: { status: 'ok', offsetMs: null, samples: 20 },
     ...overrides,
   }
 }

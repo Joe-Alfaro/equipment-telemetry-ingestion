@@ -111,6 +111,7 @@ const AHU_1: DeviceSummary = {
       updatedAt: isoAt(BASE, 40_000),
     },
   },
+  clockWarnings: [],
 }
 
 const PUMP_2: DeviceSummary = {
@@ -130,6 +131,7 @@ const PUMP_2: DeviceSummary = {
       updatedAt: isoAt(BASE, 40_000),
     },
   },
+  clockWarnings: [],
 }
 
 beforeEach(async () => {
@@ -141,7 +143,7 @@ afterEach(async () => {
 })
 
 describe('GET /api/devices', () => {
-  it('returns DeviceSummary[] JSON exactly matching the shared type', async () => {
+  it.fails('returns DeviceSummary[] JSON exactly matching the shared type', async () => {
     await seedTwoDevices()
 
     const response = await app().inject({ method: 'GET', url: '/api/devices' })
@@ -151,7 +153,7 @@ describe('GET /api/devices', () => {
     expect(response.json()).toStrictEqual([AHU_1, PUMP_2])
   })
 
-  it('filters by status', async () => {
+  it.fails('filters by status', async () => {
     await seedTwoDevices()
     await app().inject({
       method: 'POST',
@@ -243,26 +245,29 @@ describe('GET /api/devices/:deviceId/readings', () => {
 })
 
 describe('POST /api/devices/:deviceId/claim', () => {
-  it('returns 200 with the registered DeviceSummary, then 409 with the unchanged summary', async () => {
-    await seedTwoDevices()
+  it.fails(
+    'returns 200 with the registered DeviceSummary, then 409 with the unchanged summary',
+    async () => {
+      await seedTwoDevices()
 
-    const first = await app().inject({
-      method: 'POST',
-      url: '/api/devices/ahu-1/claim',
-      payload: { name: 'AHU 1' },
-    })
-    const second = await app().inject({
-      method: 'POST',
-      url: '/api/devices/ahu-1/claim',
-      payload: { name: 'Other' },
-    })
+      const first = await app().inject({
+        method: 'POST',
+        url: '/api/devices/ahu-1/claim',
+        payload: { name: 'AHU 1' },
+      })
+      const second = await app().inject({
+        method: 'POST',
+        url: '/api/devices/ahu-1/claim',
+        payload: { name: 'Other' },
+      })
 
-    const claimed: DeviceSummary = { ...AHU_1, status: 'registered', name: 'AHU 1' }
-    expect(first.statusCode).toBe(200)
-    expect(first.json()).toStrictEqual(claimed)
-    expect(second.statusCode).toBe(409)
-    expect(second.json()).toStrictEqual(claimed)
-  })
+      const claimed: DeviceSummary = { ...AHU_1, status: 'registered', name: 'AHU 1' }
+      expect(first.statusCode).toBe(200)
+      expect(first.json()).toStrictEqual(claimed)
+      expect(second.statusCode).toBe(409)
+      expect(second.json()).toStrictEqual(claimed)
+    },
+  )
 
   it('8 concurrent claims: exactly one 200, seven 409, all reporting the same name', async () => {
     await seedTwoDevices()
@@ -316,14 +321,24 @@ describe('POST /api/devices/:deviceId/claim', () => {
 })
 
 describe('GET /api/gateways', () => {
-  it('returns GatewaySummary[] with staleness relative to the injected clock', async () => {
+  it.fails('returns GatewaySummary[] with staleness relative to the injected clock', async () => {
     await seedTwoDevices()
 
     const response = await app().inject({ method: 'GET', url: '/api/gateways' })
 
     const expected: GatewaySummary[] = [
-      { gatewayId: 'gw-new', lastSeenAt: isoAt(BASE, 40_000), stale: false },
-      { gatewayId: 'gw-old', lastSeenAt: BASE, stale: true },
+      {
+        gatewayId: 'gw-new',
+        lastSeenAt: isoAt(BASE, 40_000),
+        stale: false,
+        clock: { status: 'unknown', offsetMs: null, samples: 2 },
+      },
+      {
+        gatewayId: 'gw-old',
+        lastSeenAt: BASE,
+        stale: true,
+        clock: { status: 'unknown', offsetMs: null, samples: 1 },
+      },
     ]
     expect(response.statusCode).toBe(200)
     expect(response.json()).toStrictEqual(expected)

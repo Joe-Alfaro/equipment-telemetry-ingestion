@@ -96,16 +96,20 @@ async function queryDevices(
     return acc.set(state.device_id, { ...metrics, [state.metric]: metric })
   }, new Map<string, Record<string, MetricState>>())
 
-  return devices.map((device) => ({
-    deviceId: device.device_id,
-    status: device.status,
-    name: device.name,
-    firstSeenAt: device.first_seen_at.toISOString(),
-    firstSeenGatewayId: device.first_seen_gateway_id,
-    gateways: device.gateways,
-    possiblyBehind: device.possibly_behind,
-    metrics: metricsByDevice.get(device.device_id) ?? {},
-  }))
+  // C-T type stub: clockWarnings is not computed yet (C-I); see clock.integration.test.ts.
+  return devices.map(
+    (device) =>
+      ({
+        deviceId: device.device_id,
+        status: device.status,
+        name: device.name,
+        firstSeenAt: device.first_seen_at.toISOString(),
+        firstSeenGatewayId: device.first_seen_gateway_id,
+        gateways: device.gateways,
+        possiblyBehind: device.possibly_behind,
+        metrics: metricsByDevice.get(device.device_id) ?? {},
+      }) as DeviceSummary,
+  )
 }
 
 /** Devices ordered by deviceId. The contract is documented in queries.integration.test.ts. */
@@ -181,11 +185,15 @@ export async function listGateways(
        FROM gateways g ORDER BY g.gateway_id COLLATE "C"`,
     [now.toISOString(), lateThresholdMs],
   )
-  return rows.map((row) => ({
-    gatewayId: row.gateway_id,
-    lastSeenAt: row.last_seen_at.toISOString(),
-    stale: row.stale,
-  }))
+  // C-T type stub: clock is not computed yet (C-I); see clock.integration.test.ts.
+  return rows.map(
+    (row) =>
+      ({
+        gatewayId: row.gateway_id,
+        lastSeenAt: row.last_seen_at.toISOString(),
+        stale: row.stale,
+      }) as GatewaySummary,
+  )
 }
 
 /**
