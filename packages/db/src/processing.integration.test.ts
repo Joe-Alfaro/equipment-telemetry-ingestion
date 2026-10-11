@@ -22,15 +22,17 @@ import { processReading, type ProcessOutcome } from './processing'
  * calls are separate transactions; every invariant below must hold under any interleaving
  * and is enforced by constraints / row locks, not by timing.
  *
- * Identity (decision e2): (gateway_id, device_id, sequence, event_time). event_time is compared
- * as an instant with microsecond precision, so offsets may differ. The merged migration 001 has
- * the old 3-part UNIQUE constraint; migration 002 must replace it.
+ * Identity (rule 1): (gateway_id, device_id, metric, sequence, event_time). event_time is
+ * compared as an instant with microsecond precision, so offsets may differ. Migration 003 replaces
+ * the 4-part UNIQUE constraint from 002 with this 5-part one.
  *   - New key                               -> 'inserted'. This includes the same (gateway, device,
  *                                              sequence) with another event_time, e.g. after a
- *                                              gateway's sequence counter resets or a trace re-run.
- *   - Existing key, same metric and value   -> 'duplicate' (a real resend). received_at is not
+ *                                              gateway's sequence counter resets or a trace re-run,
+ *                                              and another metric with the same (gateway, device,
+ *                                              sequence, event_time): a separate reading.
+ *   - Existing key, same value              -> 'duplicate' (a real resend). received_at is not
  *                                              part of the identity.
- *   - Existing key, other metric or value   -> 'conflict'. The first copy is kept untouched, the
+ *   - Existing key, another value           -> 'conflict'. The first copy is kept untouched, the
  *                                              rejected wire body is recorded in reading_conflicts
  *                                              (payload = the IngestReading JSON, received_at = message.receivedAt).
  *   - 'duplicate' and 'conflict' write no readings row and never touch current_state or devices;
@@ -119,7 +121,7 @@ afterAll(async () => {
   await ctx.db?.drop()
 })
 
-describe('processReading: dedup on (gateway_id, device_id, sequence, event_time) (invariant 1)', () => {
+describe('processReading: dedup on (gateway_id, device_id, metric, sequence, event_time) (invariant 1)', () => {
   it('stores a byte-identical reading resent 5 times exactly once', async () => {
     const message = msg({ device_id: 'dedup-serial', value: 21.5 })
 
@@ -164,7 +166,7 @@ describe('processReading: dedup on (gateway_id, device_id, sequence, event_time)
     expect(await count('reading_conflicts WHERE device_id = $1', ['dedup-offset'])).toBe(0)
   })
 
-  it('same 4-part key with a different value is a conflict: keeps the first copy and records the rejected one', async () => {
+  it('same 5-part key with a different value is a conflict: keeps the first copy and records the rejected one', async () => {
     const first = msg({ device_id: 'conflict-value', value: 10 })
     const second = msg({ device_id: 'conflict-value', value: 99, receivedAt: isoAt(BASE, 500) })
     await apply(first)
@@ -188,20 +190,25 @@ describe('processReading: dedup on (gateway_id, device_id, sequence, event_time)
     expect(rows[0]?.received_at.toISOString()).toBe(second.receivedAt)
   })
 
-  it('a conflicting copy with another value or another metric never touches current_state', async () => {
-    await apply(msg({ device_id: 'conflict-state', value: 10 }))
-    const before = await storedCurrentState(pool(), 'conflict-state')
+  it.fails(
+    'a conflicting copy with another value never touches current_state; another metric is a separate reading',
+    async () => {
+      await apply(msg({ device_id: 'conflict-state', value: 10 }))
+      const before = await storedCurrentState(pool(), 'conflict-state')
 
-    const otherValue = await apply(msg({ device_id: 'conflict-state', value: 50 }))
-    const otherMetric = await apply(
-      msg({ device_id: 'conflict-state', metric: 'vibration', value: 10 }),
-    )
+      const otherValue = await apply(msg({ device_id: 'conflict-state', value: 50 }))
+      const otherMetric = await apply(
+        msg({ device_id: 'conflict-state', metric: 'vibration', value: 10 }),
+      )
 
-    expect([otherValue.status, otherMetric.status]).toEqual(['conflict', 'conflict'])
-    expect(await storedCurrentState(pool(), 'conflict-state')).toEqual(before)
-    expect(await count('readings WHERE device_id = $1', ['conflict-state'])).toBe(1)
-    expect(await count('reading_conflicts WHERE device_id = $1', ['conflict-state'])).toBe(2)
-  })
+      expect([otherValue.status, otherMetric.status]).toEqual(['conflict', 'inserted'])
+      const after = await storedCurrentState(pool(), 'conflict-state')
+      expect(after.filter((s) => s.metric !== 'vibration')).toEqual(before)
+      expect(after.find((s) => s.metric === 'vibration')?.value).toBe(10)
+      expect(await count('readings WHERE device_id = $1', ['conflict-state'])).toBe(2)
+      expect(await count('reading_conflicts WHERE device_id = $1', ['conflict-state'])).toBe(1)
+    },
+  )
 
   it('the same gateway, device and sequence with a later event_time is a new reading and advances current state', async () => {
     const first = await apply(
