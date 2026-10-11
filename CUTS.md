@@ -11,9 +11,11 @@ What was deliberately left out, and why. Each item says what breaks and what wou
   dead-letters them. A burst of 20 poison readings followed by a valid one now stores the
   valid one. But nothing alerts on, inspects or replays the dead-letter queue; that's done
   by hand in the RabbitMQ management UI.
-- **Database outages are retried without a cap.** Connection errors are requeued about
-  every second until Postgres is back, so an outage loses nothing. A long outage keeps the
-  consumer busy retrying, and there's no circuit breaker or alert.
+- **Database outages are retried without a cap, and slowly.** On a connection error the
+  consumer holds the message's prefetch slot for `retryDelayMs` (about 1 s), then nacks it
+  with requeue. There is no delay queue, so during an outage throughput drops to roughly
+  prefetch (20) messages per second. Nothing is lost, but there's no circuit breaker or
+  alert.
 - **Retries can reorder.** A message retried for an unclassified error is republished to
   the back of the queue. Current state doesn't depend on order, but the retried reading may
   be flagged `out_of_order` when it wouldn't have been.
@@ -61,7 +63,8 @@ What was deliberately left out, and why. Each item says what breaks and what wou
 - **No TLS, secrets management or production config.** Credentials are fixed in
   `docker-compose.yml` for local use only.
 - **The Railway deployment is an optional extra.** It isn't needed for grading; the
-  supported path is `docker compose up`. It has no monitoring, backups or spend limit.
+  supported path is `docker compose up`. It has no monitoring, backups or spend limit. It
+  doesn't set `FUTURE_SKEW_MS`, so the default of 60000 applies.
 - **No load or soak testing.** The scenarios and integration tests prove correctness, not
   throughput.
 

@@ -165,6 +165,7 @@ and web have public domains.
 - Railway builds the Dockerfile's final `selected` stage. The `SERVICE_TARGET` build arg
   picks the service. Compose still uses `target:`.
 - The api pre-deploy command is `node --import tsx packages/db/src/migrate-cli.ts`.
+- `FUTURE_SKEW_MS` isn't set on Railway, so the default of 60000 applies, as in compose.
 - `DATABASE_URL` and `AMQP_URL` are Railway reference variables, for example
   `${{Postgres.DATABASE_URL}}`. Credentials live only in Railway, never in this repo.
 - The nginx `/api` upstream comes from `API_UPSTREAM`, through the nginx image's template
