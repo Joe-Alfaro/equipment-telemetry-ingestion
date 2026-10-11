@@ -22,14 +22,17 @@ import { processReading, type ProcessOutcome } from './processing'
  * calls are separate transactions; every invariant below must hold under any interleaving
  * and is enforced by constraints / row locks, not by timing.
  *
- * Identity (decision e): (gateway_id, device_id, sequence).
- *   - New key                        -> 'inserted'.
- *   - Existing key, same payload     -> 'duplicate'. Same payload = same metric, same value and
- *                                       the same event_time instant (offsets may differ).
- *                                       received_at is not part of the payload.
- *   - Existing key, different payload -> 'conflict'. The first copy is kept untouched, the
- *                                       rejected wire body is recorded in reading_conflicts
- *                                       (payload = the IngestReading JSON, received_at = message.receivedAt).
+ * Identity (decision e2): (gateway_id, device_id, sequence, event_time). event_time is compared
+ * as an instant with microsecond precision, so offsets may differ. The merged migration 001 has
+ * the old 3-part UNIQUE constraint; migration 002 must replace it.
+ *   - New key                               -> 'inserted'. This includes the same (gateway, device,
+ *                                              sequence) with another event_time, e.g. after a
+ *                                              gateway's sequence counter resets or a trace re-run.
+ *   - Existing key, same metric and value   -> 'duplicate' (a real resend). received_at is not
+ *                                              part of the identity.
+ *   - Existing key, other metric or value   -> 'conflict'. The first copy is kept untouched, the
+ *                                              rejected wire body is recorded in reading_conflicts
+ *                                              (payload = the IngestReading JSON, received_at = message.receivedAt).
  *   - 'duplicate' and 'conflict' write no readings row and never touch current_state or devices;
  *     their outcome flags are all false.
  *
@@ -116,8 +119,8 @@ afterAll(async () => {
   await ctx.db?.drop()
 })
 
-describe('processReading: dedup on (gateway_id, device_id, sequence) (invariant 1)', () => {
-  it.fails('stores a reading resent 5 times exactly once', async () => {
+describe('processReading: dedup on (gateway_id, device_id, sequence, event_time) (invariant 1)', () => {
+  it.fails('stores a byte-identical reading resent 5 times exactly once', async () => {
     const message = msg({ device_id: 'dedup-serial', value: 21.5 })
 
     const outcomes = await processInOrder(
@@ -168,7 +171,7 @@ describe('processReading: dedup on (gateway_id, device_id, sequence) (invariant 
   )
 
   it.fails(
-    'same key with a different value is a conflict: keeps the first copy and records the rejected one',
+    'same 4-part key with a different value is a conflict: keeps the first copy and records the rejected one',
     async () => {
       const first = msg({ device_id: 'conflict-value', value: 10 })
       const second = msg({ device_id: 'conflict-value', value: 99, receivedAt: isoAt(BASE, 500) })
@@ -195,23 +198,77 @@ describe('processReading: dedup on (gateway_id, device_id, sequence) (invariant 
   )
 
   it.fails(
-    'a conflicting copy with a newer event_time or another metric never touches current_state',
+    'a conflicting copy with another value or another metric never touches current_state',
     async () => {
       await apply(msg({ device_id: 'conflict-state', value: 10 }))
       const before = await storedCurrentState(pool(), 'conflict-state')
 
-      const newer = await apply(
-        msg({ device_id: 'conflict-state', value: 50, event_time: isoAt(BASE, 60_000) }),
-      )
+      const otherValue = await apply(msg({ device_id: 'conflict-state', value: 50 }))
       const otherMetric = await apply(
-        msg({ device_id: 'conflict-state', metric: 'vibration', value: 7 }),
+        msg({ device_id: 'conflict-state', metric: 'vibration', value: 10 }),
       )
 
-      expect([newer.status, otherMetric.status]).toEqual(['conflict', 'conflict'])
+      expect([otherValue.status, otherMetric.status]).toEqual(['conflict', 'conflict'])
       expect(await storedCurrentState(pool(), 'conflict-state')).toEqual(before)
       expect(await count('readings WHERE device_id = $1', ['conflict-state'])).toBe(1)
+      expect(await count('reading_conflicts WHERE device_id = $1', ['conflict-state'])).toBe(2)
     },
   )
+
+  it.fails(
+    'the same gateway, device and sequence with a later event_time is a new reading and advances current state',
+    async () => {
+      const first = await apply(
+        msg({ device_id: 'seq-reset', sequence: 0, value: 10, event_time: isoAt(BASE, 0) }),
+      )
+      const afterReset = await apply(
+        msg({ device_id: 'seq-reset', sequence: 0, value: 55, event_time: isoAt(BASE, 60_000) }),
+      )
+
+      expect(first.status).toBe('inserted')
+      expect(afterReset).toEqual(INSERTED_FLAGS_OFF)
+      expect(
+        (await storedReadings(pool(), 'seq-reset')).map((r) => [r.sequence, r.value, r.event_time]),
+      ).toEqual([
+        [0, 10, micros(isoAt(BASE, 0))],
+        [0, 55, micros(isoAt(BASE, 60_000))],
+      ])
+      expect(
+        (await storedCurrentState(pool(), 'seq-reset')).map((s) => [s.value, s.event_time]),
+      ).toEqual([[55, micros(isoAt(BASE, 60_000))]])
+      expect(await count('reading_conflicts WHERE device_id = $1', ['seq-reset'])).toBe(0)
+    },
+  )
+
+  it.fails(
+    'the same gateway, device and sequence with an earlier event_time is a new, out-of-order reading',
+    async () => {
+      await apply(
+        msg({ device_id: 'seq-earlier', sequence: 3, value: 1, event_time: isoAt(BASE, 5_000) }),
+      )
+
+      const earlier = await apply(
+        msg({ device_id: 'seq-earlier', sequence: 3, value: 2, event_time: isoAt(BASE, 4_000) }),
+      )
+
+      expect(earlier).toEqual({
+        ...INSERTED_FLAGS_OFF,
+        outOfOrder: true,
+        currentStateUpdated: false,
+      })
+      expect(await count('readings WHERE device_id = $1', ['seq-earlier'])).toBe(2)
+    },
+  )
+
+  it.fails('event_times 1 microsecond apart are different keys', async () => {
+    const outcomes = await processInOrder([
+      msg({ device_id: 'seq-micro', event_time: '2026-10-10T12:00:00.123456+00:00' }),
+      msg({ device_id: 'seq-micro', event_time: '2026-10-10T12:00:00.123457+00:00' }),
+    ])
+
+    expect(outcomes.map((o) => o.status)).toEqual(['inserted', 'inserted'])
+    expect(await count('readings WHERE device_id = $1', ['seq-micro'])).toBe(2)
+  })
 
   it.fails(
     'the same sequence on another device or another gateway is a distinct reading',

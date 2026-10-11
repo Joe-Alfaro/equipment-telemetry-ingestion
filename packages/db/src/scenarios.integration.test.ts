@@ -328,12 +328,12 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
     [5, GW_B, 'status', 81.31, 5],
   ]
 
-  function traceArrivals(base: string): Arrival[] {
+  function traceArrivals(base: string, device = DEVICE): Arrival[] {
     return EVENTS.map(([seq, gateway, metric, value, offset], k) =>
       arrival(
         {
           gateway_id: gateway,
-          device_id: DEVICE,
+          device_id: device,
           metric,
           value,
           event_time: isoMicrosAt(base, offset * 1_000_000),
@@ -404,16 +404,44 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
   })
 
   it.fails(
-    're-running the trace an hour later conflicts on every key and changes nothing',
+    're-running the trace with a new base time stores 6 new readings with the same flags, and run 2 becomes current',
     async () => {
-      const historyBefore = await storedReadings(pool(), DEVICE)
-      const stateBefore = await storedCurrentState(pool(), DEVICE)
+      const device = 'trace-device-2493-rerun'
+      const B2 = isoAt(B, 3_600_000)
+      const flags = (outcomes: ProcessOutcome[]) =>
+        outcomes.map((o) => [o.status, o.late, o.outOfOrder, o.currentStateUpdated])
 
-      const outcomes = await processAll(traceArrivals(isoAt(B, 3_600_000)))
+      const run1 = await processAll(traceArrivals(B, device))
+      const run2 = await processAll(traceArrivals(B2, device))
 
-      expect(outcomes.map((o) => o.status)).toEqual(Array.from({ length: 7 }, () => 'conflict'))
-      expect(await storedReadings(pool(), DEVICE)).toEqual(historyBefore)
-      expect(await storedCurrentState(pool(), DEVICE)).toEqual(stateBefore)
+      expect(flags(run2)).toEqual(flags(run1))
+      expect(run2.map((o) => o.deviceDiscovered)).toEqual(Array.from({ length: 7 }, () => false))
+      const history = await storedReadings(pool(), device)
+      expect(history).toHaveLength(12)
+      expect(history.map((r) => [r.event_time, r.sequence, r.late, r.out_of_order])).toEqual(
+        [B, B2].flatMap((base) => [
+          [micros(isoAt(base, 0)), 0, false, false],
+          [micros(isoAt(base, 1_000)), 4, false, true],
+          [micros(isoAt(base, 2_000)), 1, false, false],
+          [micros(isoAt(base, 3_000)), 2, false, false],
+          [micros(isoAt(base, 4_000)), 3, false, false],
+          [micros(isoAt(base, 5_000)), 5, false, false],
+        ]),
+      )
+      expect(
+        (await storedCurrentState(pool(), device)).map((s) => [
+          s.metric,
+          s.value,
+          s.event_time,
+          s.gateway_id,
+          s.sequence,
+        ]),
+      ).toEqual([
+        ['power_draw', 32.63, micros(isoAt(B2, 2_000)), GW_B, 1],
+        ['status', 81.31, micros(isoAt(B2, 5_000)), GW_B, 5],
+        ['temperature', 91.83, micros(isoAt(B2, 4_000)), GW_A, 3],
+      ])
+      expect(await storedDevices(pool(), device)).toHaveLength(1)
     },
   )
 })
