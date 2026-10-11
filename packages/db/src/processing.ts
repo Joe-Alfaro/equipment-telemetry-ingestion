@@ -57,17 +57,18 @@ interface InsertedReading {
 
 async function insertReading(
   client: PoolClient,
-  { reading, receivedAt }: ReadingMessage,
+  { reading, receivedAt, naiveTime = false }: ReadingMessage,
   { now, lateThresholdMs, futureSkewMs = DEFAULT_FUTURE_SKEW_MS }: ProcessOptions,
 ): Promise<InsertedReading | null> {
   // `late` and `future` are computed in SQL so event_time keeps its microseconds (a JS Date would not).
   const { rows } = await client.query<InsertedReading>(
     `INSERT INTO readings
        (gateway_id, device_id, sequence, metric, value, event_time, received_at, processed_at,
-        late, future)
+        late, future, naive_time)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
              $8::timestamptz - $6::timestamptz > $9::double precision * interval '1 millisecond',
-             $6::timestamptz - $8::timestamptz > $10::double precision * interval '1 millisecond')
+             $6::timestamptz - $8::timestamptz > $10::double precision * interval '1 millisecond',
+             $11)
      ON CONFLICT (gateway_id, device_id, metric, sequence, event_time) DO NOTHING
      RETURNING id, late`,
     [
@@ -81,6 +82,7 @@ async function insertReading(
       now.toISOString(),
       lateThresholdMs,
       futureSkewMs,
+      naiveTime,
     ],
   )
   return rows[0] ?? null

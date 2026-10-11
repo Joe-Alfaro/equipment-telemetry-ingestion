@@ -73,8 +73,18 @@ describe('listGateways: staleness', () => {
     })
 
     const expected: GatewaySummary[] = [
-      { gatewayId: 'gw-a', lastSeenAt: isoAt(BASE, 1), stale: false },
-      { gatewayId: 'gw-b', lastSeenAt: isoAt(BASE, 0), stale: true },
+      {
+        gatewayId: 'gw-a',
+        lastSeenAt: isoAt(BASE, 1),
+        stale: false,
+        clock: { status: 'unknown', offsetMs: null, samples: 1 },
+      },
+      {
+        gatewayId: 'gw-b',
+        lastSeenAt: isoAt(BASE, 0),
+        stale: true,
+        clock: { status: 'unknown', offsetMs: null, samples: 1 },
+      },
     ]
     expect(gateways).toStrictEqual(expected)
   })
@@ -144,6 +154,7 @@ describe('listDevices / getDevice', () => {
             updatedAt: isoAt(BASE, 1_000),
           },
         },
+        clockWarnings: [],
       },
       {
         deviceId: 'dev-1',
@@ -169,6 +180,7 @@ describe('listDevices / getDevice', () => {
             updatedAt: isoAt(BASE, 1_000),
           },
         },
+        clockWarnings: [],
       },
     ]
     expect(devices).toStrictEqual(expected)

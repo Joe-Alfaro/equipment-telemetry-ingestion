@@ -1,6 +1,7 @@
 import { act, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
+  gatewaySummary,
   installFakeApi,
   metric,
   reading,
@@ -89,7 +90,7 @@ describe('live updates over SSE', () => {
   it('shows the possibly-behind badge after gateway-updated marks a gateway stale', async () => {
     const api = installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1', { gateways: ['gw-1'] })],
-      gateways: [{ gatewayId: 'gw-1', lastSeenAt: '2026-10-10T11:59:50.000Z', stale: false }],
+      gateways: [gatewaySummary('gw-1', { lastSeenAt: '2026-10-10T11:59:50.000Z', stale: false })],
     })
     renderApp()
     const board = await findRegion('Equipment')
@@ -100,7 +101,7 @@ describe('live updates over SSE', () => {
       registeredDevice('dev-1', 'Chiller 1', { gateways: ['gw-1'], possiblyBehind: true }),
     )
     api.state.gateways = [
-      { gatewayId: 'gw-1', lastSeenAt: '2026-10-10T11:59:50.000Z', stale: true },
+      gatewaySummary('gw-1', { lastSeenAt: '2026-10-10T11:59:50.000Z', stale: true }),
     ]
     emit('gateway-updated', { gatewayId: 'gw-1' })
 

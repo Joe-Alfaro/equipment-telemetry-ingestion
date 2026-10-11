@@ -88,6 +88,7 @@ describe('claimDevice', () => {
             updatedAt: isoAt(BASE, 200),
           },
         },
+        clockWarnings: [],
       },
     })
     expect(await storedDevices(pool(), 'claim-first')).toMatchObject([

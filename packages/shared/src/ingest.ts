@@ -20,6 +20,11 @@ export interface ReadingMessage {
   reading: IngestReading
   /** ISO-8601 time the api accepted the reading. */
   receivedAt: string
+  /**
+   * The gateway sent `event_time` with no UTC offset and the api appended `Z`. Absent on messages
+   * published before the clock check, which are treated as false.
+   */
+  naiveTime?: boolean
 }
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; errors: string[] }

@@ -46,6 +46,13 @@ What was deliberately left out, and why. Each item says what breaks and what wou
   `out_of_order` and `future` flags are informational. A gateway with a clock a year
   ahead is flagged `future`, but its reading still becomes current until real time
   catches up. There is no skew cap, alerting or reprocessing pipeline.
+- **Gateway clocks are detected, never corrected.** A gateway whose clock runs ahead, or
+  which sends local time with no UTC offset, gets a clock badge, and its stored
+  `event_time` stays as received. An automatic correction would be a guess: it would
+  change the reading's identity (so resends would stop deduplicating against earlier
+  copies), move current state, and could not be undone for a wrong guess. A negative skew
+  is never flagged, because a backlog replay and network delay look the same. Next:
+  per-gateway configured timezones, applied at ingest for new readings only.
 - **Minimal dashboard.** No search, paging, charts, metric units or gateway view. Every
   SSE event refetches both device lists, which is fine for tens of devices and not for
   thousands.
@@ -64,7 +71,8 @@ What was deliberately left out, and why. Each item says what breaks and what wou
   `docker-compose.yml` for local use only.
 - **The Railway deployment is an optional extra.** It isn't needed for grading; the
   supported path is `docker compose up`. It has no monitoring, backups or spend limit. It
-  doesn't set `FUTURE_SKEW_MS`, so the default of 60000 applies.
+  doesn't set `FUTURE_SKEW_MS` or `CLOCK_SKEW_THRESHOLD_MS`, so their defaults of 60000
+  apply.
 - **No load or soak testing.** The scenarios and integration tests prove correctness, not
   throughput.
 

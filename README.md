@@ -63,7 +63,9 @@ Stop with `docker compose down`. Add `-v` to wipe all data and start fresh.
 
 Configuration (set in `docker-compose.yml`): `LATE_THRESHOLD_MS` (default `30000`) drives
 both the `late` flag and gateway staleness; `FUTURE_SKEW_MS` (default `60000`) flags a
-reading `future` when its `event_time` is that far ahead of processing; `CONSUMER_PREFETCH`
+reading `future` when its `event_time` is that far ahead of processing;
+`CLOCK_SKEW_THRESHOLD_MS` (default `60000`, read by the api) is the median skew above which a
+gateway's clock is reported `ahead` (see [Read API](#read-api)); `CONSUMER_PREFETCH`
 (default `20`) is the number of messages the consumer processes concurrently.
 
 ## Running the scenarios
@@ -132,12 +134,29 @@ SELECT (SELECT count(DISTINCT device_id) FROM readings) AS seen,
 
 | Method and path                                | Returns                                                                   |
 | ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `GET /api/devices?status=registered`           | Board devices with current value per metric                               |
+| `GET /api/devices?status=registered`           | Board devices with current value per metric and `clockWarnings`           |
 | `GET /api/devices?status=unregistered`         | Inbox devices                                                             |
 | `GET /api/devices/:deviceId/readings`          | Full history ordered by `event_time`, with `late`, `outOfOrder`, `future` |
 | `POST /api/devices/:deviceId/claim` `{"name"}` | 200 on the first claim, 409 if already claimed, 404 if unknown            |
-| `GET /api/gateways`                            | `lastSeenAt` and `stale` per gateway                                      |
+| `GET /api/gateways`                            | `lastSeenAt`, `stale` and `clock` per gateway                             |
 | `GET /api/stream`                              | Server-sent events: device updated/discovered/claimed, gateway            |
+
+Gateway clock check (detect, never correct). Each gateway's `clock` is
+`{ status, offsetMs, samples }`, judged from its last 20 readings by `received_at`, where
+skew = `event_time` − `received_at`:
+
+- `local-time`: at least 5 readings arrived with no UTC offset, and at least 80% of those sit
+  within 5 min of the same non-zero multiple of 15 min. `offsetMs` is that multiple, for
+  example `19800000` for UTC+5:30.
+- `ahead`: the median skew exceeds `CLOCK_SKEW_THRESHOLD_MS`. `offsetMs` is the median, rounded
+  to the second.
+- `ok`: anything else, including a negative median (a backlog replay). `offsetMs` is `null`.
+- `unknown`: fewer than 5 readings. `offsetMs` is `null`.
+
+Each device's `clockWarnings` is `{ gatewayId, status, offsetMs }[]`, one entry for each
+gateway that reported the device and is `ahead` or `local-time`. It's `[]` when there are none.
+The board and inbox cards show one badge per warning, for example "Clock ahead ~2m" or
+"Local time? UTC+5:30". Stored timestamps are never rewritten.
 
 ## Deployment (optional extra)
 
@@ -165,7 +184,8 @@ and web have public domains.
 - Railway builds the Dockerfile's final `selected` stage. The `SERVICE_TARGET` build arg
   picks the service. Compose still uses `target:`.
 - The api pre-deploy command is `node --import tsx packages/db/src/migrate-cli.ts`.
-- `FUTURE_SKEW_MS` isn't set on Railway, so the default of 60000 applies, as in compose.
+- `FUTURE_SKEW_MS` and `CLOCK_SKEW_THRESHOLD_MS` aren't set on Railway, so their defaults of
+  60000 apply, as in compose.
 - `DATABASE_URL` and `AMQP_URL` are Railway reference variables, for example
   `${{Postgres.DATABASE_URL}}`. Credentials live only in Railway, never in this repo.
 - The nginx `/api` upstream comes from `API_UPSTREAM`, through the nginx image's template

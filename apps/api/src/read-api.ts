@@ -6,6 +6,7 @@ export interface ReadApiDeps {
   pool: Pool
   now: () => Date
   lateThresholdMs: number
+  clockSkewThresholdMs: number
 }
 
 interface DeviceParams {
@@ -19,8 +20,11 @@ function isDeviceStatus(value: unknown): value is DeviceStatus {
 }
 
 /** The read API consumed by the web app. Bodies are exactly the @telemetry/shared types. */
-export function registerReadApi(app: FastifyInstance, { pool, now, lateThresholdMs }: ReadApiDeps) {
-  const readOptions = () => ({ now: now(), lateThresholdMs })
+export function registerReadApi(
+  app: FastifyInstance,
+  { pool, now, lateThresholdMs, clockSkewThresholdMs }: ReadApiDeps,
+) {
+  const readOptions = () => ({ now: now(), lateThresholdMs, clockSkewThresholdMs })
 
   app.get<{ Querystring: { status?: unknown } }>('/api/devices', async (request, reply) => {
     const { status } = request.query

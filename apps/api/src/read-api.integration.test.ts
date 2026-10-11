@@ -111,6 +111,7 @@ const AHU_1: DeviceSummary = {
       updatedAt: isoAt(BASE, 40_000),
     },
   },
+  clockWarnings: [],
 }
 
 const PUMP_2: DeviceSummary = {
@@ -130,6 +131,7 @@ const PUMP_2: DeviceSummary = {
       updatedAt: isoAt(BASE, 40_000),
     },
   },
+  clockWarnings: [],
 }
 
 beforeEach(async () => {
@@ -322,8 +324,18 @@ describe('GET /api/gateways', () => {
     const response = await app().inject({ method: 'GET', url: '/api/gateways' })
 
     const expected: GatewaySummary[] = [
-      { gatewayId: 'gw-new', lastSeenAt: isoAt(BASE, 40_000), stale: false },
-      { gatewayId: 'gw-old', lastSeenAt: BASE, stale: true },
+      {
+        gatewayId: 'gw-new',
+        lastSeenAt: isoAt(BASE, 40_000),
+        stale: false,
+        clock: { status: 'unknown', offsetMs: null, samples: 2 },
+      },
+      {
+        gatewayId: 'gw-old',
+        lastSeenAt: BASE,
+        stale: true,
+        clock: { status: 'unknown', offsetMs: null, samples: 1 },
+      },
     ]
     expect(response.statusCode).toBe(200)
     expect(response.json()).toStrictEqual(expected)

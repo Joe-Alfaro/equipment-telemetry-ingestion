@@ -1,6 +1,7 @@
 import type { DeviceSummary } from '@telemetry/shared'
 import { useId } from 'react'
 import { devicesUrl, fetchDevices } from './api'
+import { ClockBadges } from './ClockBadges'
 import { formatTimestamp } from './format'
 import { useFetch } from './useFetch'
 
@@ -63,6 +64,7 @@ function DeviceCard({ device, onViewHistory }: DeviceCardProps) {
         <h3 id={headingId}>{device.name ?? device.deviceId}</h3>
         {device.possiblyBehind && <PossiblyBehindBadge />}
       </header>
+      <ClockBadges warnings={device.clockWarnings} />
       <p className="muted small">{device.deviceId}</p>
       {metrics.length === 0 && <p className="muted">No metrics reported yet.</p>}
       {metrics.length > 0 && (

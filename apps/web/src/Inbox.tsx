@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import { claimDevice, devicesUrl, fetchDevices } from './api'
 import { PossiblyBehindBadge } from './Board'
+import { ClockBadges } from './ClockBadges'
 import { formatTimestamp } from './format'
 import { useFetch } from './useFetch'
 
@@ -114,6 +115,7 @@ function ClaimCard({ device, onClaimed, onAlreadyClaimed, onViewHistory }: Claim
         <h3 id={headingId}>{device.deviceId}</h3>
         {device.possiblyBehind && <PossiblyBehindBadge />}
       </header>
+      <ClockBadges warnings={device.clockWarnings} />
       <p className="muted small">
         First seen <time dateTime={device.firstSeenAt}>{formatTimestamp(device.firstSeenAt)}</time>{' '}
         via {device.firstSeenGatewayId}

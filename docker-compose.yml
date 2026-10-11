@@ -10,6 +10,7 @@ x-node-env: &node-env
   READINGS_QUEUE: readings
   LATE_THRESHOLD_MS: '30000'
   FUTURE_SKEW_MS: '60000'
+  CLOCK_SKEW_THRESHOLD_MS: '60000'
 
 services:
   postgres:
