@@ -1,0 +1,17 @@
+{
+  "name": "@telemetry/simulator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@telemetry/shared": "*",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
+  }
+}
