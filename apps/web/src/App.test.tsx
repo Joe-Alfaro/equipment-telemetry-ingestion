@@ -1,9 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
+import { installFakeApi } from './test/fakeApi'
 
 describe('App (smoke)', () => {
   it('renders the shell', () => {
+    installFakeApi()
     render(<App />)
 
     expect(

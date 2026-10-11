@@ -4,7 +4,7 @@ import { installFakeApi, metric, registeredDevice, unregisteredDevice } from './
 import { findRegion, renderApp } from './test/renderApp'
 
 describe('Equipment board', () => {
-  it.fails('lists each registered device with its current value per metric', async () => {
+  it('lists each registered device with its current value per metric', async () => {
     installFakeApi({
       devices: [
         registeredDevice('dev-1', 'Chiller 1', {
@@ -33,7 +33,7 @@ describe('Equipment board', () => {
     expect(within(ahu).queryByText('temperature')).not.toBeInTheDocument()
   })
 
-  it.fails('shows when each metric value was measured', async () => {
+  it('shows when each metric value was measured', async () => {
     installFakeApi({
       devices: [
         registeredDevice('dev-1', 'Chiller 1', {
@@ -49,7 +49,7 @@ describe('Equipment board', () => {
     expect(within(chiller).getByText(/as of/i)).toBeInTheDocument()
   })
 
-  it.fails('does not show unregistered devices on the board', async () => {
+  it('does not show unregistered devices on the board', async () => {
     installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1'), unregisteredDevice('dev-2')],
     })
@@ -62,7 +62,7 @@ describe('Equipment board', () => {
     expect(within(board).queryByText('dev-2')).not.toBeInTheDocument()
   })
 
-  it.fails('badges a device as possibly behind when one of its gateways is stale', async () => {
+  it('badges a device as possibly behind when one of its gateways is stale', async () => {
     installFakeApi({
       devices: [
         registeredDevice('dev-1', 'Chiller 1', { possiblyBehind: true }),

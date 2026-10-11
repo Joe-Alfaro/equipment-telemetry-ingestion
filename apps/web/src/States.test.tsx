@@ -4,7 +4,7 @@ import { installFailingApi, installFakeApi, installPendingApi } from './test/fak
 import { findRegion, renderApp } from './test/renderApp'
 
 describe('loading, empty and error states', () => {
-  it.fails('shows a loading message in both lists while devices are being fetched', async () => {
+  it('shows a loading message in both lists while devices are being fetched', async () => {
     installPendingApi()
     renderApp()
 
@@ -15,22 +15,19 @@ describe('loading, empty and error states', () => {
     expect(within(inbox).getByText(/loading/i)).toBeInTheDocument()
   })
 
-  it.fails(
-    'replaces the loading message with an empty message when there are no devices',
-    async () => {
-      installFakeApi({ devices: [] })
-      renderApp()
-      const board = await findRegion('Equipment')
-      const inbox = await findRegion('New devices')
+  it('replaces the loading message with an empty message when there are no devices', async () => {
+    installFakeApi({ devices: [] })
+    renderApp()
+    const board = await findRegion('Equipment')
+    const inbox = await findRegion('New devices')
 
-      expect(await within(board).findByText(/no equipment yet/i)).toBeInTheDocument()
-      expect(await within(inbox).findByText(/no new devices/i)).toBeInTheDocument()
-      expect(within(board).queryByText(/loading/i)).not.toBeInTheDocument()
-      expect(within(inbox).queryByText(/loading/i)).not.toBeInTheDocument()
-    },
-  )
+    expect(await within(board).findByText(/no equipment yet/i)).toBeInTheDocument()
+    expect(await within(inbox).findByText(/no new devices/i)).toBeInTheDocument()
+    expect(within(board).queryByText(/loading/i)).not.toBeInTheDocument()
+    expect(within(inbox).queryByText(/loading/i)).not.toBeInTheDocument()
+  })
 
-  it.fails('shows an alert in each list when devices cannot be loaded', async () => {
+  it('shows an alert in each list when devices cannot be loaded', async () => {
     installFailingApi()
     renderApp()
     const board = await findRegion('Equipment')

@@ -19,7 +19,7 @@ function emit(...args: Parameters<FakeEventSource['emit']>) {
 }
 
 describe('live updates over SSE', () => {
-  it.fails('opens one stream to /api/stream and closes it on unmount', async () => {
+  it('opens one stream to /api/stream and closes it on unmount', async () => {
     installFakeApi()
     const { unmount } = renderApp()
 
@@ -32,7 +32,7 @@ describe('live updates over SSE', () => {
     expect(source?.readyState).toBe(FakeEventSource.CLOSED)
   })
 
-  it.fails('refetches a device on device-updated and shows its new value', async () => {
+  it('refetches a device on device-updated and shows its new value', async () => {
     const api = installFakeApi({
       devices: [
         registeredDevice('dev-1', 'Chiller 1', {
@@ -57,7 +57,7 @@ describe('live updates over SSE', () => {
     expect(within(updated).queryByText('21.5')).not.toBeInTheDocument()
   })
 
-  it.fails('adds a device to the inbox on device-discovered', async () => {
+  it('adds a device to the inbox on device-discovered', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     renderApp()
     const inbox = await findRegion('New devices')
@@ -70,7 +70,7 @@ describe('live updates over SSE', () => {
     expect(within(discovered).getByText(/gw-4/)).toBeInTheDocument()
   })
 
-  it.fails('moves a device claimed in another tab to the board on device-claimed', async () => {
+  it('moves a device claimed in another tab to the board on device-claimed', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     renderApp()
     const inbox = await findRegion('New devices')
@@ -86,37 +86,34 @@ describe('live updates over SSE', () => {
     )
   })
 
-  it.fails(
-    'shows the possibly-behind badge after gateway-updated marks a gateway stale',
-    async () => {
-      const api = installFakeApi({
-        devices: [registeredDevice('dev-1', 'Chiller 1', { gateways: ['gw-1'] })],
-        gateways: [{ gatewayId: 'gw-1', lastSeenAt: '2026-10-10T11:59:50.000Z', stale: false }],
-      })
-      renderApp()
-      const board = await findRegion('Equipment')
-      const card = await within(board).findByRole('article', { name: 'Chiller 1' })
-      expect(within(card).queryByText(/possibly behind/i)).not.toBeInTheDocument()
+  it('shows the possibly-behind badge after gateway-updated marks a gateway stale', async () => {
+    const api = installFakeApi({
+      devices: [registeredDevice('dev-1', 'Chiller 1', { gateways: ['gw-1'] })],
+      gateways: [{ gatewayId: 'gw-1', lastSeenAt: '2026-10-10T11:59:50.000Z', stale: false }],
+    })
+    renderApp()
+    const board = await findRegion('Equipment')
+    const card = await within(board).findByRole('article', { name: 'Chiller 1' })
+    expect(within(card).queryByText(/possibly behind/i)).not.toBeInTheDocument()
 
-      api.upsertDevice(
-        registeredDevice('dev-1', 'Chiller 1', { gateways: ['gw-1'], possiblyBehind: true }),
-      )
-      api.state.gateways = [
-        { gatewayId: 'gw-1', lastSeenAt: '2026-10-10T11:59:50.000Z', stale: true },
-      ]
-      emit('gateway-updated', { gatewayId: 'gw-1' })
+    api.upsertDevice(
+      registeredDevice('dev-1', 'Chiller 1', { gateways: ['gw-1'], possiblyBehind: true }),
+    )
+    api.state.gateways = [
+      { gatewayId: 'gw-1', lastSeenAt: '2026-10-10T11:59:50.000Z', stale: true },
+    ]
+    emit('gateway-updated', { gatewayId: 'gw-1' })
 
-      await waitFor(() =>
-        expect(
-          within(within(board).getByRole('article', { name: 'Chiller 1' })).getByText(
-            /possibly behind/i,
-          ),
-        ).toBeInTheDocument(),
-      )
-    },
-  )
+    await waitFor(() =>
+      expect(
+        within(within(board).getByRole('article', { name: 'Chiller 1' })).getByText(
+          /possibly behind/i,
+        ),
+      ).toBeInTheDocument(),
+    )
+  })
 
-  it.fails('refreshes the open device detail on device-updated', async () => {
+  it('refreshes the open device detail on device-updated', async () => {
     const api = installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1')],
       readings: [reading({ deviceId: 'dev-1', sequence: 1, value: 20.1 })],

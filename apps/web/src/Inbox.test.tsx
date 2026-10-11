@@ -6,7 +6,7 @@ import { findRegion, renderApp } from './test/renderApp'
 import { server } from './test/server'
 
 describe('New devices inbox', () => {
-  it.fails('lists each unregistered device with its first-seen gateway', async () => {
+  it('lists each unregistered device with its first-seen gateway', async () => {
     installFakeApi({
       devices: [
         unregisteredDevice('dev-2', { firstSeenGatewayId: 'gw-2' }),
@@ -29,7 +29,7 @@ describe('New devices inbox', () => {
 })
 
 describe('Claim flow', () => {
-  it.fails('claims a device by name and moves it from the inbox to the board', async () => {
+  it('claims a device by name and moves it from the inbox to the board', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const inbox = await findRegion('New devices')
@@ -48,7 +48,7 @@ describe('Claim flow', () => {
     ])
   })
 
-  it.fails('submits the claim when Enter is pressed in the name field', async () => {
+  it('submits the claim when Enter is pressed in the name field', async () => {
     installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const inbox = await findRegion('New devices')
@@ -60,7 +60,7 @@ describe('Claim flow', () => {
     expect(await within(board).findByRole('article', { name: 'Boiler 7' })).toBeInTheDocument()
   })
 
-  it.fails('does not send a claim without a name', async () => {
+  it('does not send a claim without a name', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const { user } = renderApp()
     const inbox = await findRegion('New devices')
@@ -73,53 +73,47 @@ describe('Claim flow', () => {
     expect(within(inbox).getByRole('article', { name: 'dev-2' })).toBeInTheDocument()
   })
 
-  it.fails(
-    'sends one claim when Claim is double-clicked, and disables it while pending',
-    async () => {
-      const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
-      const release = api.holdClaims()
-      const { user } = renderApp()
-      const inbox = await findRegion('New devices')
-      const board = await findRegion('Equipment')
-      const card = await within(inbox).findByRole('article', { name: 'dev-2' })
-      const claim = within(card).getByRole('button', { name: 'Claim' })
+  it('sends one claim when Claim is double-clicked, and disables it while pending', async () => {
+    const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
+    const release = api.holdClaims()
+    const { user } = renderApp()
+    const inbox = await findRegion('New devices')
+    const board = await findRegion('Equipment')
+    const card = await within(inbox).findByRole('article', { name: 'dev-2' })
+    const claim = within(card).getByRole('button', { name: 'Claim' })
 
-      await user.type(within(card).getByRole('textbox', { name: 'Device name' }), 'Boiler 7')
-      await user.dblClick(claim)
+    await user.type(within(card).getByRole('textbox', { name: 'Device name' }), 'Boiler 7')
+    await user.dblClick(claim)
 
-      await waitFor(() => expect(claim).toBeDisabled())
-      release()
-      expect(await within(board).findByRole('article', { name: 'Boiler 7' })).toBeInTheDocument()
-      expect(api.requests.filter((r) => r.method === 'POST')).toHaveLength(1)
-    },
-  )
+    await waitFor(() => expect(claim).toBeDisabled())
+    release()
+    expect(await within(board).findByRole('article', { name: 'Boiler 7' })).toBeInTheDocument()
+    expect(api.requests.filter((r) => r.method === 'POST')).toHaveLength(1)
+  })
 
-  it.fails(
-    'handles 409 by explaining the device was already claimed and showing it on the board',
-    async () => {
-      const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
-      const { user } = renderApp()
-      const inbox = await findRegion('New devices')
-      const board = await findRegion('Equipment')
-      const card = await within(inbox).findByRole('article', { name: 'dev-2' })
-      // Another tab claims the device after this page loaded its inbox.
-      api.upsertDevice(registeredDevice('dev-2', 'Claimed Elsewhere'))
+  it('handles 409 by explaining the device was already claimed and showing it on the board', async () => {
+    const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
+    const { user } = renderApp()
+    const inbox = await findRegion('New devices')
+    const board = await findRegion('Equipment')
+    const card = await within(inbox).findByRole('article', { name: 'dev-2' })
+    // Another tab claims the device after this page loaded its inbox.
+    api.upsertDevice(registeredDevice('dev-2', 'Claimed Elsewhere'))
 
-      await user.type(within(card).getByRole('textbox', { name: 'Device name' }), 'Boiler 7')
-      await user.click(within(card).getByRole('button', { name: 'Claim' }))
+    await user.type(within(card).getByRole('textbox', { name: 'Device name' }), 'Boiler 7')
+    await user.click(within(card).getByRole('button', { name: 'Claim' }))
 
-      expect(await within(inbox).findByRole('alert')).toHaveTextContent(/already claimed/i)
-      expect(
-        await within(board).findByRole('article', { name: 'Claimed Elsewhere' }),
-      ).toBeInTheDocument()
-      expect(within(board).queryByRole('article', { name: 'Boiler 7' })).not.toBeInTheDocument()
-      await waitFor(() =>
-        expect(within(inbox).queryByRole('article', { name: 'dev-2' })).not.toBeInTheDocument(),
-      )
-    },
-  )
+    expect(await within(inbox).findByRole('alert')).toHaveTextContent(/already claimed/i)
+    expect(
+      await within(board).findByRole('article', { name: 'Claimed Elsewhere' }),
+    ).toBeInTheDocument()
+    expect(within(board).queryByRole('article', { name: 'Boiler 7' })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(inbox).queryByRole('article', { name: 'dev-2' })).not.toBeInTheDocument(),
+    )
+  })
 
-  it.fails('keeps the device in the inbox and re-enables Claim when the claim fails', async () => {
+  it('keeps the device in the inbox and re-enables Claim when the claim fails', async () => {
     installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     server.use(
       http.post('/api/devices/:deviceId/claim', () =>
