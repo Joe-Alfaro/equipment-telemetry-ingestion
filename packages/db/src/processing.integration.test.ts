@@ -190,25 +190,22 @@ describe('processReading: dedup on (gateway_id, device_id, metric, sequence, eve
     expect(rows[0]?.received_at.toISOString()).toBe(second.receivedAt)
   })
 
-  it.fails(
-    'a conflicting copy with another value never touches current_state; another metric is a separate reading',
-    async () => {
-      await apply(msg({ device_id: 'conflict-state', value: 10 }))
-      const before = await storedCurrentState(pool(), 'conflict-state')
+  it('a conflicting copy with another value never touches current_state; another metric is a separate reading', async () => {
+    await apply(msg({ device_id: 'conflict-state', value: 10 }))
+    const before = await storedCurrentState(pool(), 'conflict-state')
 
-      const otherValue = await apply(msg({ device_id: 'conflict-state', value: 50 }))
-      const otherMetric = await apply(
-        msg({ device_id: 'conflict-state', metric: 'vibration', value: 10 }),
-      )
+    const otherValue = await apply(msg({ device_id: 'conflict-state', value: 50 }))
+    const otherMetric = await apply(
+      msg({ device_id: 'conflict-state', metric: 'vibration', value: 10 }),
+    )
 
-      expect([otherValue.status, otherMetric.status]).toEqual(['conflict', 'inserted'])
-      const after = await storedCurrentState(pool(), 'conflict-state')
-      expect(after.filter((s) => s.metric !== 'vibration')).toEqual(before)
-      expect(after.find((s) => s.metric === 'vibration')?.value).toBe(10)
-      expect(await count('readings WHERE device_id = $1', ['conflict-state'])).toBe(2)
-      expect(await count('reading_conflicts WHERE device_id = $1', ['conflict-state'])).toBe(1)
-    },
-  )
+    expect([otherValue.status, otherMetric.status]).toEqual(['conflict', 'inserted'])
+    const after = await storedCurrentState(pool(), 'conflict-state')
+    expect(after.filter((s) => s.metric !== 'vibration')).toEqual(before)
+    expect(after.find((s) => s.metric === 'vibration')?.value).toBe(10)
+    expect(await count('readings WHERE device_id = $1', ['conflict-state'])).toBe(2)
+    expect(await count('reading_conflicts WHERE device_id = $1', ['conflict-state'])).toBe(1)
+  })
 
   it('the same gateway, device and sequence with a later event_time is a new reading and advances current state', async () => {
     const first = await apply(
