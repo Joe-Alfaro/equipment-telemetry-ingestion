@@ -4,11 +4,19 @@ What was deliberately left out, and why. Each item says what breaks and what wou
 
 ## Reliability
 
-- **Poisoned messages requeue forever.** A message that decodes but fails processing
-  (for example, the database rejects it every time) is nacked with requeue, so it loops
-  without limit. There is no retry cap, delay or dead-lettering for processing failures.
-  Undecodable messages are handled: they go to the durable `readings.dead-letter` queue.
-  Next step: count attempts in a header, back off, then dead-letter after N tries.
+- **Dead-lettered messages have no replay tooling.** After the audit, poison input can no
+  longer stall ingestion: the api rejects with 400 anything Postgres can't store (impossible
+  dates, years outside 0001–9999, NUL, ids over 256 characters), and the consumer sends
+  data errors to `readings.dead-letter`, retries other errors up to 5 times, then
+  dead-letters them. A burst of 20 poison readings followed by a valid one now stores the
+  valid one. But nothing alerts on, inspects or replays the dead-letter queue; that's done
+  by hand in the RabbitMQ management UI.
+- **Database outages are retried without a cap.** Connection errors are requeued about
+  every second until Postgres is back, so an outage loses nothing. A long outage keeps the
+  consumer busy retrying, and there's no circuit breaker or alert.
+- **Retries can reorder.** A message retried for an unclassified error is republished to
+  the back of the queue. Current state doesn't depend on order, but the retried reading may
+  be flagged `out_of_order` when it wouldn't have been.
 - **A single consumer replica in compose.** The consumer processes up to 20 messages
   concurrently (prefetch), and correctness doesn't depend on there being one instance:
   the invariants are enforced by constraints and row locks. But only one replica was run
@@ -32,9 +40,10 @@ What was deliberately left out, and why. Each item says what breaks and what wou
   before claim actions can be attributed.
 - **No unclaim, rename, merge or reject.** A claim is final. A device that is noise (a
   mistyped ID from a gateway) stays in the inbox forever.
-- **Late readings are flagged, never held back or corrected.** The `late` and
-  `out_of_order` flags are informational. There is no alerting on them and no
-  reprocessing pipeline.
+- **Late and future readings are flagged, never held back or corrected.** The `late`,
+  `out_of_order` and `future` flags are informational. A gateway with a clock a year
+  ahead is flagged `future`, but its reading still becomes current until real time
+  catches up. There is no skew cap, alerting or reprocessing pipeline.
 - **Minimal dashboard.** No search, paging, charts, metric units or gateway view. Every
   SSE event refetches both device lists, which is fine for tens of devices and not for
   thousands.
@@ -51,6 +60,8 @@ What was deliberately left out, and why. Each item says what breaks and what wou
   written to `reading_conflicts`; nothing in the UI or API shows it.
 - **No TLS, secrets management or production config.** Credentials are fixed in
   `docker-compose.yml` for local use only.
+- **The Railway deployment is an optional extra.** It isn't needed for grading; the
+  supported path is `docker compose up`. It has no monitoring, backups or spend limit.
 - **No load or soak testing.** The scenarios and integration tests prove correctness, not
   throughput.
 

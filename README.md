@@ -4,7 +4,7 @@ Ingests gateway telemetry over HTTP, routes it through RabbitMQ, and persists it
 Postgres while keeping each device's history duplicate-free and its current state correct
 by `event_time`. A React dashboard shows live equipment state and lets you claim new devices.
 
-- [DESIGN.md](DESIGN.md): the problem, the late-data decision, the trace for `--seed joe-alfaro`
+- [DESIGN.md](DESIGN.md): the problem, the late-data decision, the trace for `--seed Joe-Alfaro`
 - [TRACE.md](TRACE.md): the full hand trace, the timing derivation, and actual vs predicted
 - [CUTS.md](CUTS.md): what was deliberately left out
 - [AI_USAGE.md](AI_USAGE.md): how AI tools were used and how their claims were checked
@@ -40,6 +40,25 @@ curl -i -X POST localhost:8080/ingest/readings \
 # HTTP/1.1 202 Accepted  (only after RabbitMQ has confirmed the message)
 ```
 
+### Ingest validation
+
+`POST /ingest/readings` returns **202** only after RabbitMQ confirms the message. It returns
+**400**, with a `details` list, and publishes nothing when:
+
+- the body isn't a JSON object, or a field is missing;
+- `gateway_id`, `device_id` or `metric` is empty, longer than 256 characters, or contains
+  `\u0000`;
+- `value` isn't a finite number;
+- `sequence` isn't a safe integer (`Number.isSafeInteger`);
+- `event_time` isn't a real ISO-8601 date-time (`YYYY-MM-DDThh:mm:ss[.fff][Z|±hh:mm]`):
+  impossible dates such as Feb 30 or hour 24, a year outside 0001–9999, or an offset
+  beyond ±15:59.
+
+A timestamp **without an offset is treated as UTC** and accepted. Extra fields are ignored.
+These rules keep anything Postgres can't store out of the queue. In the consumer, data errors
+go to the `readings.dead-letter` queue, database outages are retried after about 1 s until
+the database is back, and other errors are retried up to 5 times and then dead-lettered.
+
 Stop with `docker compose down`. Add `-v` to wipe all data and start fresh.
 
 Configuration (set in `docker-compose.yml`): `LATE_THRESHOLD_MS` (default `30000`) drives
@@ -65,20 +84,21 @@ python3 telemetry_generator.py --target http://localhost:8080 --scenario race
   once, and both readings are kept.
 
 New devices land in the **New devices** inbox. Type a name and press **Claim** to move a
-device onto the **Equipment** board. **View history** on a board card opens the reading
-history with its `Late` and `Out of order` flags.
+device onto the **Equipment** board. **View history** on a board or inbox card opens the reading
+history with its `Late`, `Out of order` and `Future timestamp` flags.
 
-### The trace (seed `joe-alfaro`)
+### The trace (seed `Joe-Alfaro`)
 
-The personalized trace uses the seed **`joe-alfaro`**:
+The personalized trace uses the seed **`Joe-Alfaro`**, exactly as written (the GitHub
+username; seeds are case-sensitive):
 
 ```sh
-python3 telemetry_generator.py --target http://localhost:8080 --scenario trace --seed joe-alfaro
+python3 telemetry_generator.py --target http://localhost:8080 --scenario trace --seed Joe-Alfaro
 ```
 
 It prints the sequence and waits for Enter before sending (add `--yes` to skip the
-prompt). It reports device `trace-device-2493` through gateways `gw-a-joe-alfaro` and
-`gw-b-joe-alfaro`. The summary is in
+prompt). It reports device **`trace-device-8720`** through gateways `gw-a-Joe-Alfaro` and
+`gw-b-Joe-Alfaro`. The summary is in
 [DESIGN.md](DESIGN.md#trace---seed-joe-alfaro), and the full hand trace with the actual
 result is in [TRACE.md](TRACE.md).
 
@@ -110,18 +130,19 @@ SELECT (SELECT count(DISTINCT device_id) FROM readings) AS seen,
 
 ## Read API
 
-| Method and path                                | Returns                                                         |
-| ---------------------------------------------- | --------------------------------------------------------------- |
-| `GET /api/devices?status=registered`           | Board devices with current value per metric                     |
-| `GET /api/devices?status=unregistered`         | Inbox devices                                                   |
-| `GET /api/devices/:deviceId/readings`          | Full history ordered by `event_time`, with `late`, `outOfOrder` |
-| `POST /api/devices/:deviceId/claim` `{"name"}` | 200 on the first claim, 409 if already claimed, 404 if unknown  |
-| `GET /api/gateways`                            | `lastSeenAt` and `stale` per gateway                            |
-| `GET /api/stream`                              | Server-sent events: device updated/discovered/claimed, gateway  |
+| Method and path                                | Returns                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `GET /api/devices?status=registered`           | Board devices with current value per metric                               |
+| `GET /api/devices?status=unregistered`         | Inbox devices                                                             |
+| `GET /api/devices/:deviceId/readings`          | Full history ordered by `event_time`, with `late`, `outOfOrder`, `future` |
+| `POST /api/devices/:deviceId/claim` `{"name"}` | 200 on the first claim, 409 if already claimed, 404 if unknown            |
+| `GET /api/gateways`                            | `lastSeenAt` and `stale` per gateway                                      |
+| `GET /api/stream`                              | Server-sent events: device updated/discovered/claimed, gateway            |
 
-## Deployment
+## Deployment (optional extra)
 
-A live copy runs on Railway:
+**Optional extra, not needed for grading; docker-compose is the supported path.** A live
+copy also runs on Railway:
 
 - Dashboard: https://web-production-6ac10.up.railway.app
 - API (generator target): https://api-production-1751.up.railway.app

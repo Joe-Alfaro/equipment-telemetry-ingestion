@@ -91,3 +91,40 @@ Notes:
   - **Current:** each metric moves to run 2's reading: power_draw 90.94 at B2+0, vibration 56.07 at B2+4 and status 58.44 at B2+5. The values are the same as run 1's; the `event_time`s are run 2's.
   - **Flags:** the same in each run: 0 late, 0 out_of_order and 0 future.
   - **Run 2's first status** (seq 2 at B2+1) is not out of order relative to run 1's B1+5, provided the runs start more than 4 s apart.
+
+## Actual vs predicted
+
+The prediction above was committed in `d7f8a67` before this run and is unchanged. Statements above that the trace "has not been sent" describe that point in time.
+
+Run **once**, on 2026-10-11, against a `docker compose up --build` stack built from a fresh clone of the fix-round branch. Before the run, the stack had been used only for the clean, replay and race scenarios and the poison checks, so no other trace data was present:
+
+```
+python3 telemetry_generator.py --target http://localhost:8080 --scenario trace --seed Joe-Alfaro --yes
+```
+
+The generator printed the same sequence as above, then `sent.` Here B = 20:11:49.019098 UTC. Rows for `trace-device-8720` by `event_time` (times are the seconds past 20:11):
+
+| event_time | seq | gateway         | metric     | value | received_at | processed_at | late | out_of_order | future |
+| ---------- | --- | --------------- | ---------- | ----- | ----------- | ------------ | ---- | ------------ | ------ |
+| 49.019098  | 0   | gw-a-Joe-Alfaro | power_draw | 90.94 | 49.031      | 49.032       | f    | f            | f      |
+| 50.019098  | 2   | gw-b-Joe-Alfaro | status     | 83.48 | 49.140      | 49.140       | f    | f            | f      |
+| 51.019098  | 3   | gw-b-Joe-Alfaro | status     | 85.86 | 49.195      | 49.196       | f    | f            | f      |
+| 52.019098  | 4   | gw-b-Joe-Alfaro | status     | 82.05 | 49.250      | 49.250       | f    | f            | f      |
+| 53.019098  | 1   | gw-a-Joe-Alfaro | vibration  | 56.07 | 49.085      | 49.086       | f    | f            | f      |
+| 54.019098  | 5   | gw-b-Joe-Alfaro | status     | 58.44 | 49.303      | 49.305       | f    | f            | f      |
+
+| What               | Predicted                                        | Actual                                                                                   | Match |
+| ------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------- | ----- |
+| History            | 6 rows, seq 0–5; the seq 5 resend is a duplicate | 6 rows, seq 0–5; no 7th row                                                              | yes   |
+| Conflicts          | 0                                                | 0 in `reading_conflicts`                                                                 | yes   |
+| Current power_draw | 90.94 (gw-a, seq 0, B+0)                         | 90.94 (gw-a-Joe-Alfaro, seq 0, B+0)                                                      | yes   |
+| Current vibration  | 56.07 (gw-a, seq 1, B+4)                         | 56.07 (gw-a-Joe-Alfaro, seq 1, B+4)                                                      | yes   |
+| Current status     | 58.44 (gw-b, seq 5, B+5)                         | 58.44 (gw-b-Joe-Alfaro, seq 5, B+5)                                                      | yes   |
+| Temperature        | none                                             | no `current_state` row                                                                   | yes   |
+| `late`             | 0                                                | 0 (largest lag 13 ms, seq 0)                                                             | yes   |
+| `out_of_order`     | 0                                                | 0                                                                                        | yes   |
+| `future`           | 0                                                | 0 (largest skew about 4.7 s, seq 5)                                                      | yes   |
+| Device             | one `unregistered` record, first seen via gw-a   | one `unregistered` record, first seen via gw-a-Joe-Alfaro at 49.031                      | yes   |
+| Gateways           | both recorded                                    | both recorded; gw-b's `last_seen_at` (49.366) is after the seq 5 row, from the duplicate | yes   |
+
+**Result: the system matched the prediction exactly.** The read API (`GET /api/devices?status=unregistered`) showed the same three current values. The integration test `packages/db/src/scenarios.integration.test.ts` encodes this prediction, with fixed timestamps, and passes.
