@@ -300,23 +300,23 @@ describe('clean scenario shape (scenario_clean)', () => {
   })
 })
 
-describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () => {
+describe('trace scenario (--seed Joe-Alfaro), as hand-traced in TRACE.md', () => {
   /*
-   * Printed sequence (device trace-device-2493). event_time = B + offset; sent 50 ms apart,
+   * Printed sequence (device trace-device-8720). event_time = B + offset; sent 50 ms apart,
    * so message k is received at B + 50k ms.
    */
   const B = '2026-10-10T12:00:00.000Z'
-  const DEVICE = 'trace-device-2493'
-  const GW_A = 'gw-a-joe-alfaro'
-  const GW_B = 'gw-b-joe-alfaro'
+  const DEVICE = 'trace-device-8720'
+  const GW_A = 'gw-a-Joe-Alfaro'
+  const GW_B = 'gw-b-Joe-Alfaro'
   const EVENTS: [number, string, string, number, number][] = [
-    [0, GW_A, 'temperature', 41.73, 0],
-    [1, GW_B, 'power_draw', 32.63, 2],
-    [2, GW_B, 'temperature', 36.52, 3],
-    [3, GW_A, 'temperature', 91.83, 4],
-    [4, GW_B, 'temperature', 23.15, 1],
-    [5, GW_B, 'status', 81.31, 5],
-    [5, GW_B, 'status', 81.31, 5],
+    [0, GW_A, 'power_draw', 90.94, 0],
+    [1, GW_A, 'vibration', 56.07, 4],
+    [2, GW_B, 'status', 83.48, 1],
+    [3, GW_B, 'status', 85.86, 2],
+    [4, GW_B, 'status', 82.05, 3],
+    [5, GW_B, 'status', 58.44, 5],
+    [5, GW_B, 'status', 58.44, 5],
   ]
 
   function traceArrivals(base: string, device = DEVICE): Arrival[] {
@@ -336,6 +336,14 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
     )
   }
 
+  async function futureCount(device: string): Promise<number> {
+    const { rows } = await pool().query<{ n: number }>(
+      'SELECT count(*)::int AS n FROM readings WHERE device_id = $1 AND future',
+      [device],
+    )
+    return rows[0]?.n ?? -1
+  }
+
   it('matches the hand trace: outcomes, flags, history and current per metric', async () => {
     const outcomes = await processAll(traceArrivals(B))
 
@@ -344,7 +352,7 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
       ['inserted', false, false, true],
       ['inserted', false, false, true],
       ['inserted', false, false, true],
-      ['inserted', false, true, false],
+      ['inserted', false, false, true],
       ['inserted', false, false, true],
       ['duplicate', false, false, false],
     ])
@@ -369,13 +377,14 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
         r.out_of_order,
       ]),
     ).toEqual([
-      [micros(isoAt(B, 0)), 0, GW_A, 'temperature', 41.73, false, false],
-      [micros(isoAt(B, 1_000)), 4, GW_B, 'temperature', 23.15, false, true],
-      [micros(isoAt(B, 2_000)), 1, GW_B, 'power_draw', 32.63, false, false],
-      [micros(isoAt(B, 3_000)), 2, GW_B, 'temperature', 36.52, false, false],
-      [micros(isoAt(B, 4_000)), 3, GW_A, 'temperature', 91.83, false, false],
-      [micros(isoAt(B, 5_000)), 5, GW_B, 'status', 81.31, false, false],
+      [micros(isoAt(B, 0)), 0, GW_A, 'power_draw', 90.94, false, false],
+      [micros(isoAt(B, 1_000)), 2, GW_B, 'status', 83.48, false, false],
+      [micros(isoAt(B, 2_000)), 3, GW_B, 'status', 85.86, false, false],
+      [micros(isoAt(B, 3_000)), 4, GW_B, 'status', 82.05, false, false],
+      [micros(isoAt(B, 4_000)), 1, GW_A, 'vibration', 56.07, false, false],
+      [micros(isoAt(B, 5_000)), 5, GW_B, 'status', 58.44, false, false],
     ])
+    expect(await futureCount(DEVICE)).toBe(0)
     expect(
       (await storedCurrentState(pool(), DEVICE)).map((s) => [
         s.metric,
@@ -385,9 +394,9 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
         s.sequence,
       ]),
     ).toEqual([
-      ['power_draw', 32.63, micros(isoAt(B, 2_000)), GW_B, 1],
-      ['status', 81.31, micros(isoAt(B, 5_000)), GW_B, 5],
-      ['temperature', 91.83, micros(isoAt(B, 4_000)), GW_A, 3],
+      ['power_draw', 90.94, micros(isoAt(B, 0)), GW_A, 0],
+      ['status', 58.44, micros(isoAt(B, 5_000)), GW_B, 5],
+      ['vibration', 56.07, micros(isoAt(B, 4_000)), GW_A, 1],
     ])
     expect(await storedDevices(pool(), DEVICE)).toMatchObject([
       { status: 'unregistered', first_seen_gateway_id: GW_A },
@@ -395,7 +404,7 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
   })
 
   it('re-running the trace with a new base time stores 6 new readings with the same flags, and run 2 becomes current', async () => {
-    const device = 'trace-device-2493-rerun'
+    const device = 'trace-device-8720-rerun'
     const B2 = isoAt(B, 3_600_000)
     const flags = (outcomes: ProcessOutcome[]) =>
       outcomes.map((o) => [o.status, o.late, o.outOfOrder, o.currentStateUpdated])
@@ -410,13 +419,14 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
     expect(history.map((r) => [r.event_time, r.sequence, r.late, r.out_of_order])).toEqual(
       [B, B2].flatMap((base) => [
         [micros(isoAt(base, 0)), 0, false, false],
-        [micros(isoAt(base, 1_000)), 4, false, true],
-        [micros(isoAt(base, 2_000)), 1, false, false],
-        [micros(isoAt(base, 3_000)), 2, false, false],
-        [micros(isoAt(base, 4_000)), 3, false, false],
+        [micros(isoAt(base, 1_000)), 2, false, false],
+        [micros(isoAt(base, 2_000)), 3, false, false],
+        [micros(isoAt(base, 3_000)), 4, false, false],
+        [micros(isoAt(base, 4_000)), 1, false, false],
         [micros(isoAt(base, 5_000)), 5, false, false],
       ]),
     )
+    expect(await futureCount(device)).toBe(0)
     expect(
       (await storedCurrentState(pool(), device)).map((s) => [
         s.metric,
@@ -426,9 +436,9 @@ describe('trace scenario (--seed joe-alfaro), as hand-traced in DESIGN.md', () =
         s.sequence,
       ]),
     ).toEqual([
-      ['power_draw', 32.63, micros(isoAt(B2, 2_000)), GW_B, 1],
-      ['status', 81.31, micros(isoAt(B2, 5_000)), GW_B, 5],
-      ['temperature', 91.83, micros(isoAt(B2, 4_000)), GW_A, 3],
+      ['power_draw', 90.94, micros(isoAt(B2, 0)), GW_A, 0],
+      ['status', 58.44, micros(isoAt(B2, 5_000)), GW_B, 5],
+      ['vibration', 56.07, micros(isoAt(B2, 4_000)), GW_A, 1],
     ])
     expect(await storedDevices(pool(), device)).toHaveLength(1)
   })
