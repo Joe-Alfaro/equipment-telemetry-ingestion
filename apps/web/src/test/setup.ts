@@ -15,5 +15,7 @@ afterEach(() => {
   cleanup()
   FakeEventSource.reset()
   vi.unstubAllGlobals()
+  // jsdom keeps the URL between tests in a file; every test starts on the board unless it says so.
+  window.history.replaceState(null, '', '/')
 })
 afterAll(() => server.close())

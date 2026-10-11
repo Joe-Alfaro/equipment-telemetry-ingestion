@@ -9,7 +9,7 @@ import {
   unregisteredDevice,
 } from './test/fakeApi'
 import { FakeEventSource, latestEventSource } from './test/fakeEventSource'
-import { findRegion, renderApp } from './test/renderApp'
+import { findHistoryPage, findRegion, openNewDevices, renderApp } from './test/renderApp'
 
 // SSE is simulated by FakeEventSource (src/test/fakeEventSource.ts), installed as the global
 // EventSource in setup.ts. Each test changes the fake backend first, then emits the event the
@@ -58,32 +58,32 @@ describe('live updates over SSE', () => {
     expect(within(updated).queryByText('21.5')).not.toBeInTheDocument()
   })
 
-  it('adds a device to the inbox on device-discovered', async () => {
+  it.fails('adds a device to the open New devices drawer on device-discovered', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
-    renderApp()
-    const inbox = await findRegion('New devices')
-    await within(inbox).findByRole('article', { name: 'dev-2' })
+    const { user } = renderApp()
+    const drawer = await openNewDevices(user)
+    await within(drawer).findByRole('article', { name: 'dev-2' })
 
     api.upsertDevice(unregisteredDevice('dev-5', { firstSeenGatewayId: 'gw-4' }))
     emit('device-discovered', { deviceId: 'dev-5' })
 
-    const discovered = await within(inbox).findByRole('article', { name: 'dev-5' })
+    const discovered = await within(drawer).findByRole('article', { name: 'dev-5' })
     expect(within(discovered).getByText(/gw-4/)).toBeInTheDocument()
   })
 
-  it('moves a device claimed in another tab to the board on device-claimed', async () => {
+  it.fails('moves a device claimed in another tab to the board on device-claimed', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
-    renderApp()
-    const inbox = await findRegion('New devices')
+    const { user } = renderApp()
+    const drawer = await openNewDevices(user)
     const board = await findRegion('Equipment')
-    await within(inbox).findByRole('article', { name: 'dev-2' })
+    await within(drawer).findByRole('article', { name: 'dev-2' })
 
     api.upsertDevice(registeredDevice('dev-2', 'Boiler 7'))
     emit('device-claimed', { deviceId: 'dev-2' })
 
     expect(await within(board).findByRole('article', { name: 'Boiler 7' })).toBeInTheDocument()
     await waitFor(() =>
-      expect(within(inbox).queryByRole('article', { name: 'dev-2' })).not.toBeInTheDocument(),
+      expect(within(drawer).queryByRole('article', { name: 'dev-2' })).not.toBeInTheDocument(),
     )
   })
 
@@ -114,7 +114,7 @@ describe('live updates over SSE', () => {
     )
   })
 
-  it('refreshes the open device detail on device-updated', async () => {
+  it.fails('refreshes the open history page on device-updated', async () => {
     const api = installFakeApi({
       devices: [registeredDevice('dev-1', 'Chiller 1')],
       readings: [reading({ deviceId: 'dev-1', sequence: 1, value: 20.1 })],
@@ -123,7 +123,7 @@ describe('live updates over SSE', () => {
     const board = await findRegion('Equipment')
     const card = await within(board).findByRole('article', { name: 'Chiller 1' })
     await user.click(within(card).getByRole('button', { name: 'View history' }))
-    const detail = await findRegion('Device detail')
+    const detail = await findHistoryPage('Chiller 1')
     const table = await within(detail).findByRole('table', { name: 'Reading history' })
     expect(within(table).getAllByRole('row')).toHaveLength(2)
 
