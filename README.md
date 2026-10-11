@@ -228,16 +228,17 @@ copy also runs on Railway:
 python3 telemetry_generator.py --target https://api-production-1751.up.railway.app --scenario clean
 ```
 
-The Railway project has five services. They talk over Railway's private network. Only api
+The Railway project has six services. They talk over Railway's private network. Only api
 and web have public domains.
 
-| Service    | Source                                    | Notes                                                             |
-| ---------- | ----------------------------------------- | ----------------------------------------------------------------- |
-| `Postgres` | Railway managed Postgres                  | No public TCP proxy                                               |
-| `rabbitmq` | `rabbitmq:4-management-alpine` + a volume | `RABBITMQ_NODENAME=rabbit@localhost` keeps the data dir stable    |
-| `api`      | this repo, `SERVICE_TARGET=api`           | Pre-deploy runs the migrations; healthcheck `/healthz`; `HOST=::` |
-| `consumer` | this repo, `SERVICE_TARGET=consumer`      |                                                                   |
-| `web`      | this repo, `SERVICE_TARGET=web`           | `API_UPSTREAM=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8080`        |
+| Service     | Source                                    | Notes                                                                                                                                                 |
+| ----------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Postgres`  | Railway managed Postgres                  | No public TCP proxy                                                                                                                                   |
+| `rabbitmq`  | `rabbitmq:4-management-alpine` + a volume | `RABBITMQ_NODENAME=rabbit@localhost` keeps the data dir stable                                                                                        |
+| `api`       | this repo, `SERVICE_TARGET=api`           | Pre-deploy runs the migrations; healthcheck `/healthz`; `HOST=::`                                                                                     |
+| `consumer`  | this repo, `SERVICE_TARGET=consumer`      |                                                                                                                                                       |
+| `web`       | this repo, `SERVICE_TARGET=web`           | `API_UPSTREAM=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8080`                                                                                            |
+| `simulator` | this repo, `SERVICE_TARGET=simulator`     | Demo extra, not needed for grading. `API_URL=http://api.railway.internal:8080`; default `SIM_*` values; always on, so the public dashboard stays live |
 
 - Railway builds the Dockerfile's final `selected` stage. The `SERVICE_TARGET` build arg
   picks the service. Compose still uses `target:`.
