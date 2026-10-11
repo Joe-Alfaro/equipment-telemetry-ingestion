@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@telemetry/broker": "*",
-    "@telemetry/db": "*"
+    "@telemetry/db": "*",
+    "@telemetry/shared": "*"
   }
 }

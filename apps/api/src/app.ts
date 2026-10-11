@@ -8,6 +8,8 @@ export interface AppDeps {
   /** Optional so ingest-only tests need no database. The read API (phase 2) requires it. */
   pool?: Pool
   now?: () => Date
+  /** Gateway staleness threshold for the read API (`possiblyBehind`, `stale`). Default 30000. */
+  lateThresholdMs?: number
   logger?: FastifyServerOptions['logger']
 }
 

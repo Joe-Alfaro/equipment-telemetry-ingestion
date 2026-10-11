@@ -14,5 +14,8 @@
     "@telemetry/db": "*",
     "@telemetry/shared": "*",
     "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@telemetry/test-harness": "*"
   }
 }

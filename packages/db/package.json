@@ -12,10 +12,12 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@telemetry/shared": "*",
     "pg": "^8.23.1",
     "tsx": "^4.23.15"
   },
   "devDependencies": {
+    "@telemetry/test-harness": "*",
     "@types/pg": "^8.23.1"
   }
 }
