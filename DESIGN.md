@@ -54,49 +54,29 @@ messages concurrently, the flag can depend on commit order. A race loser, for ex
 flagged when it commits second. `current_state` never depends on processing order: it is
 a function of the set of stored readings.
 
-## Trace: --seed joe-alfaro
+## Trace: --seed Joe-Alfaro
 
-Written by hand before the trace was ever sent. [TRACE.md](TRACE.md) has the full trace,
-the timing derivation, the re-run analysis and the evidence. Printed sequence (device
-`trace-device-2493`; `#` is the wire `sequence`):
+Written by hand before the trace was ever run. The seed was changed from `joe-alfaro` to
+exactly `Joe-Alfaro`, the brief's "GitHub username". [TRACE.md](TRACE.md) has the printed
+sequence, the timing derivation and the re-run analysis. Device `trace-device-8720`, in
+arrival order (B = base time):
 
-```
- #  gateway        metric          value   event_time offset (s)
- 0  gw-a-joe-alfaro temperature     41.73                       0
- 1  gw-b-joe-alfaro power_draw      32.63                       2
- 2  gw-b-joe-alfaro temperature     36.52                       3
- 3  gw-a-joe-alfaro temperature     91.83                       4
- 4  gw-b-joe-alfaro temperature     23.15                       1
- 5  gw-b-joe-alfaro status          81.31                       5
- 5  gw-b-joe-alfaro status          81.31                       5
-```
+| seq | gateway | metric     | value | event_time | Result                                | Current after the step               |
+| --- | ------- | ---------- | ----- | ---------- | ------------------------------------- | ------------------------------------ |
+| 0   | gw-a    | power_draw | 90.94 | B+0        | stored; device created `unregistered` | power 90.94                          |
+| 1   | gw-a    | vibration  | 56.07 | B+4        | stored                                | power 90.94; vib 56.07               |
+| 2   | gw-b    | status     | 83.48 | B+1        | stored                                | power 90.94; vib 56.07; status 83.48 |
+| 3   | gw-b    | status     | 85.86 | B+2        | stored                                | status 85.86 (B+2 > B+1)             |
+| 4   | gw-b    | status     | 82.05 | B+3        | stored                                | status 82.05 (B+3 > B+2)             |
+| 5   | gw-b    | status     | 58.44 | B+5        | stored                                | status 58.44 (B+5 > B+3)             |
+| 5   | gw-b    | status     | 58.44 | B+5        | duplicate (same 5-part key and value) | unchanged                            |
 
-Predicted, in arrival order (B = base time):
+**Final current per metric:** power_draw 90.94 (gw-a, seq 0, B+0), vibration 56.07
+(gw-a, seq 1, B+4), status 58.44 (gw-b, seq 5, B+5). No temperature.
 
-| seq | Result                                | late | out_of_order | Current after the step                |
-| --- | ------------------------------------- | ---- | ------------ | ------------------------------------- |
-| 0   | stored; device created `unregistered` | no   | no           | temp 41.73 (B+0)                      |
-| 1   | stored                                | no   | no           | temp 41.73; power 32.63               |
-| 2   | stored                                | no   | no           | temp 36.52 (B+3); power 32.63         |
-| 3   | stored                                | no   | no           | temp 91.83 (B+4); power 32.63         |
-| 4   | stored, B+1 < B+4                     | no   | **yes**      | unchanged                             |
-| 5   | stored                                | no   | no           | temp 91.83; power 32.63; status 81.31 |
-| 5   | duplicate (identical key and payload) | –    | –            | unchanged                             |
-
-**Final current per metric:** temperature 91.83 (gw-a, seq 3, B+4), power_draw 32.63
-(gw-b, seq 1, B+2), status 81.31 (gw-b, seq 5, B+5). No vibration. Nothing is late,
-because every lag is under 1 s and five of the six event times are in the future.
-
-**Actual vs predicted:**
-
-- **Match:** the real run stored 6 rows (the resend was a duplicate), and current is
-  91.83 / 32.63 / 81.31, with 0 late and `out_of_order` only on seq 4.
-- **Differences:** sends were about 59 ms apart, not 50 ms, which changed the lags but no
-  flag. The "possibly behind" badge only renders on board cards, so the inbox didn't show
-  it while the device was unclaimed.
-- **Device status:** the trace leaves `trace-device-2493` unregistered. It shows
-  `registered` in the database only because it was claimed afterwards, during the
-  post-run UI checks.
+**Flags:** 0 `late` (every lag is under 1 s), 0 `out_of_order` (status arrives in
+event-time order, and vibration's B+4 is its only reading), 0 `future` (largest skew
+about 5 s, under 60 s). 6 rows are stored and no conflict is logged.
 
 ## 1h vs 1min offline
 
