@@ -10,11 +10,12 @@ import { App } from '../App'
  *   device is possibly behind, the text "Possibly behind". Each article has a "View history"
  *   button.
  * - Region "New devices". Each unregistered device is an article named by its device ID, showing
- *   "First seen" and the gateway that first reported it, a "Device name" textbox and a "Claim"
- *   button.
- * - Region "Device detail", shown after "View history": a heading with the device name and a
- *   table named "Reading history" with one row per reading, in event-time order. Flagged rows
- *   say "Late" and/or "Out of order".
+ *   "First seen" and the gateway that first reported it, "Possibly behind" when it applies, a
+ *   "Device name" textbox, a "Claim" button and a "View history" button.
+ * - Region "Device detail", shown after "View history" (from the board or the inbox): a heading
+ *   with the device name (the device ID when unnamed) and a table named "Reading history" with
+ *   one row per reading, in event-time order. Flagged rows say "Late", "Out of order" and/or
+ *   "Future timestamp".
  * - Loading shows "Loading…", empty lists say "No equipment yet", "No new devices" and
  *   "No readings yet", and failures render a role="alert" message.
  */
