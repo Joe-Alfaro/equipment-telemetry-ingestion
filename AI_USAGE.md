@@ -4,7 +4,8 @@ Almost all of the code and docs in this repo were written by AI agents. The huma
 requirements and the process, and made or accepted the key design calls. Merges were
 reserved for the human from the overnight run until 2026-10-11 and none happened in that
 window; the human then handed merging and branch management to the orchestrator, which
-merged MR !14. This file describes the setup, the split of work, and how the agents' claims were checked.
+merged MR !14. This file describes the setup, the split of work, and how the agents'
+claims were checked.
 
 ## Tools
 
