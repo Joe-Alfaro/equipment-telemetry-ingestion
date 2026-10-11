@@ -45,7 +45,9 @@ shown: **`late`** if `processed_at - event_time > 30 s`; **`out_of_order`** if o
 its metric's current state when processed (stored, current unchanged; under concurrent
 processing this flag can depend on commit order, current state cannot); **`future`** if
 `event_time` is more than 60 s ahead (flag only). A gateway silent for over 30 s is
-stale, and its devices show **"possibly behind"**.
+stale, and its devices show **"possibly behind"**. Gateway clocks are detected, never
+fixed: a clock running ahead, or naive local time, gets a badge, but `event_time` is
+never rewritten, since a guessed offset would change identity and current state.
 
 ## Trace: --seed Joe-Alfaro
 
