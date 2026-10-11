@@ -1,9 +1,11 @@
 # AI usage
 
 Almost all of the code and docs in this repo were written by AI agents. The human set the
-requirements and the process, made or accepted the key design calls, and merges the
-branches. This file describes the
-setup, the split of work, and how the agents' claims were checked.
+requirements and the process, and made or accepted the key design calls. Merges were
+reserved for the human from the overnight run until 2026-10-11 and none happened in that
+window; the human then handed merging and branch management to the orchestrator, which
+merged MR !14. This file describes the setup, the split of work, and how the agents'
+claims were checked.
 
 ## Tools
 
@@ -46,8 +48,9 @@ setup, the split of work, and how the agents' claims were checked.
   commits. The orchestrator reviewed each amendment before the implementation used them.
 - **Workers stacked branches** and pushed only their own branch. One exception: the
   phase 1 skeleton was fast-forwarded to `main` by a worker after the orchestrator
-  reviewed it, before merging was reserved for the human. Since then, no agent has
-  pushed to or merged into `main`.
+  reviewed it, before merging was reserved for the human. After that, no agent pushed
+  to or merged into `main` until 2026-10-11, when the human handed merging to `main` and
+  branch management to the orchestrator.
 
 ## The human's role
 
@@ -63,17 +66,20 @@ setup, the split of work, and how the agents' claims were checked.
   queue, and a `future` flag.
 - Set the process: TDD split, orchestrator review of every branch, merges reserved for
   the human.
-- Merges the branches into `main`.
+- Held merges from the overnight run until 2026-10-11; none happened in that window. On
+  2026-10-11 the human handed merging and branch management to the orchestrator, which
+  merged MR !14.
+- Does the manual UI click-through and records the demo video.
 
 Design decisions are recorded in a running decisions log, with their status:
 
 - **Delegated to the orchestrator.** The human handed the broker choice to the
   orchestrator, which picked RabbitMQ over Redpanda and Kafka.
-- **Pending the human's sign-off.** The orchestrator made or proposed these during an
-  unattended overnight run: e2 (the identity key including `event_time`), f (monotonic
-  current state per device and metric), g (exactly-once registration) and h (the
-  late-data policy, "never wait, never drop, flag", with a 30 s threshold). They are
-  implemented and tested, but the human has not yet signed them off.
+- **Approved by the human (2026-10-11).** The orchestrator made or proposed these during
+  an unattended overnight run: e2 (the identity key including `event_time`, later
+  extended to the 5-part key with metric), f (monotonic current state per device and
+  metric), g (exactly-once registration) and h (the late-data policy, "never wait, never
+  drop, flag", with a 30 s threshold). The human approved them on 2026-10-11.
 
 ## How claims were verified
 
@@ -109,8 +115,8 @@ An agent saying "tests pass" or "the invariant holds" was not taken as evidence.
     history flags.
   - Claim semantics were also checked with curl: 200, 409 and 404, and exactly one 200
     out of 10 parallel claims.
-  - **Still pending for the human:** a manual UI click-through (claim a device, open the
-    history from the board and the inbox).
+  - **Owned by the human:** the manual UI click-through (claim a device, open the history
+    from the board and the inbox).
 - **Generator facts were checked against its source.** Claims about the generator (for
   example, that `sequence` is per gateway and device, not per gateway; that resends are
   byte-identical; that trace event times are mostly in the future) were checked by reading

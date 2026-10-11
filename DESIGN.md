@@ -20,6 +20,14 @@ All three are **enforced in Postgres**, not by timing:
 - **Registration:** `devices` PRIMARY KEY, inserted in the reading's transaction. A claim
   is one `UPDATE ... WHERE status = 'unregistered'`: one 200, all others 409.
 
+## Broker: RabbitMQ over Kafka/Redpanda
+
+The invariants live in Postgres, so the broker only needs durable at-least-once delivery
+(publisher confirms, ack after commit), which RabbitMQ gives most simply. We give up a
+replayable log and per-device partition ordering, which the order-independent design
+doesn't need. At 10x, consumers compete until Postgres is the limit; if replay were
+needed, a Kafka-style log partitioned by device would be the move.
+
 ## Late-data options
 
 | Option                                | Problem                                    | Verdict    |
