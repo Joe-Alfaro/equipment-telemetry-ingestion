@@ -1,9 +1,10 @@
 # AI usage
 
 Almost all of the code and docs in this repo were written by AI agents. The human set the
-requirements and the process, made or accepted the key design calls, and merged the
-branches until 2026-10-11, when merging passed to the orchestrator. This file describes the
-setup, the split of work, and how the agents' claims were checked.
+requirements and the process, and made or accepted the key design calls. Merges were
+reserved for the human from the overnight run until 2026-10-11 and none happened in that
+window; the human then handed merging and branch management to the orchestrator, which
+merged MR !14. This file describes the setup, the split of work, and how the agents' claims were checked.
 
 ## Tools
 
@@ -64,8 +65,9 @@ setup, the split of work, and how the agents' claims were checked.
   queue, and a `future` flag.
 - Set the process: TDD split, orchestrator review of every branch, merges reserved for
   the human.
-- Merged the branches into `main` until 2026-10-11, then handed merging to `main` (and
-  branch management) to the orchestrator.
+- Held merges from the overnight run until 2026-10-11; none happened in that window. On
+  2026-10-11 the human handed merging and branch management to the orchestrator, which
+  merged MR !14.
 - Does the manual UI click-through and records the demo video.
 
 Design decisions are recorded in a running decisions log, with their status:
@@ -112,7 +114,7 @@ An agent saying "tests pass" or "the invariant holds" was not taken as evidence.
     history flags.
   - Claim semantics were also checked with curl: 200, 409 and 404, and exactly one 200
     out of 10 parallel claims.
-  - **Done by the human:** the manual UI click-through (claim a device, open the history
+  - **Owned by the human:** the manual UI click-through (claim a device, open the history
     from the board and the inbox).
 - **Generator facts were checked against its source.** Claims about the generator (for
   example, that `sequence` is per gateway and device, not per gateway; that resends are
