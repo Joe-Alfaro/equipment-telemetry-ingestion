@@ -1,5 +1,6 @@
 import { claimDevice, listDevices, listGateways, listReadings, type Pool } from '@telemetry/db'
 import type { ApiError, DeviceStatus } from '@telemetry/shared'
+import { isIsoTimestampWithOffset } from '@telemetry/shared'
 import type { FastifyInstance } from 'fastify'
 
 export interface ReadApiDeps {
@@ -35,13 +36,21 @@ export function registerReadApi(
     return listDevices(pool, { ...readOptions(), status })
   })
 
-  app.get<{ Params: DeviceParams }>('/api/devices/:deviceId/readings', async (request, reply) => {
-    const readings = await listReadings(pool, request.params.deviceId)
-    if (!readings) {
-      return reply.code(404).send(DEVICE_NOT_FOUND)
-    }
-    return readings
-  })
+  app.get<{ Params: DeviceParams; Querystring: { since?: unknown } }>(
+    '/api/devices/:deviceId/readings',
+    async (request, reply) => {
+      const { since } = request.query
+      if (since !== undefined && !isIsoTimestampWithOffset(since)) {
+        const body: ApiError = { error: 'since must be an ISO-8601 timestamp with an offset' }
+        return reply.code(400).send(body)
+      }
+      const readings = await listReadings(pool, request.params.deviceId, { since })
+      if (!readings) {
+        return reply.code(404).send(DEVICE_NOT_FOUND)
+      }
+      return readings
+    },
+  )
 
   app.post<{ Params: DeviceParams; Body: unknown }>(
     '/api/devices/:deviceId/claim',

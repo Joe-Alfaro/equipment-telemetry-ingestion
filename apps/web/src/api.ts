@@ -1,4 +1,5 @@
 import type { ClaimRequest, DeviceStatus, DeviceSummary, Reading } from '@telemetry/shared'
+import { WINDOW_MS } from './series'
 
 export class HttpError extends Error {
   readonly status: number
@@ -32,6 +33,12 @@ export function fetchDevices(url: string, signal?: AbortSignal) {
 
 export function fetchReadings(url: string, signal?: AbortSignal) {
   return getJson<Reading[]>(url, signal)
+}
+
+/** A device's readings for the chart window: `since` is taken when the request starts. */
+export function fetchReadingWindow(url: string, signal?: AbortSignal) {
+  const since = new Date(Date.now() - WINDOW_MS).toISOString()
+  return fetchReadings(`${url}?since=${encodeURIComponent(since)}`, signal)
 }
 
 export type ClaimResult =

@@ -213,15 +213,21 @@ interface ReadingRow {
 }
 
 /** History ordered by (event_time, gateway_id, sequence); null when the device is unknown. */
-export async function listReadings(pool: Pool, deviceId: string): Promise<Reading[] | null> {
+export async function listReadings(
+  pool: Pool,
+  deviceId: string,
+  { since }: { since?: string } = {},
+): Promise<Reading[] | null> {
+  // `since` (ISO-8601 with an offset) keeps readings with event_time >= since; null keeps all.
   const { rows } = await pool.query<ReadingRow>(
     `SELECT gateway_id, device_id, sequence, metric, value, event_time, received_at,
             processed_at, late, out_of_order, future
-       FROM readings WHERE device_id = $1
+       FROM readings WHERE device_id = $1 AND ($2::timestamptz IS NULL OR event_time >= $2)
       ORDER BY event_time, gateway_id COLLATE "C", sequence`,
-    [deviceId],
+    [deviceId, since ?? null],
   )
-  // Every stored reading references its device, so no rows means unknown or (never) empty.
+  // Every stored reading references its device, so no rows means an unknown device, or nothing
+  // at or after `since`.
   if (rows.length === 0) {
     const { rowCount } = await pool.query('SELECT 1 FROM devices WHERE device_id = $1', [deviceId])
     return rowCount === 0 ? null : []

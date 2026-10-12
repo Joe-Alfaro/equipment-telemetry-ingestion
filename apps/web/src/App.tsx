@@ -25,6 +25,9 @@ export function App() {
   // refreshes the lists (they're small), and the open history only when the event concerns it.
   const [listVersion, setListVersion] = useState(0)
   const [detailVersion, setDetailVersion] = useState(0)
+  // Per-device counters for the board's chart windows, plus one bump for all on reconnect.
+  const [deviceVersions, setDeviceVersions] = useState<Record<string, number>>({})
+  const [reconnects, setReconnects] = useState(0)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const newDevicesButtonRef = useRef<HTMLButtonElement>(null)
   const deviceId = matchDevicePath(usePathname())
@@ -38,12 +41,22 @@ export function App() {
   const streamStatus = useEventStream({
     onEvents(events) {
       refreshLists()
+      setDeviceVersions((versions) =>
+        events.reduce(
+          (next, event) =>
+            'deviceId' in event.data
+              ? { ...next, [event.data.deviceId]: (next[event.data.deviceId] ?? 0) + 1 }
+              : next,
+          versions,
+        ),
+      )
       if (deviceId !== null && events.some((event) => concernsDevice(event, deviceId))) {
         setDetailVersion((version) => version + 1)
       }
     },
     onReconnect() {
       refreshLists()
+      setReconnects((count) => count + 1)
       setDetailVersion((version) => version + 1)
     },
   })
@@ -74,7 +87,13 @@ export function App() {
         </div>
       </header>
       <main>
-        {deviceId === null && <Board version={listVersion} onViewHistory={viewHistory} />}
+        {deviceId === null && (
+          <Board
+            version={listVersion}
+            readingsVersion={(id) => (deviceVersions[id] ?? 0) + reconnects}
+            onViewHistory={viewHistory}
+          />
+        )}
         {deviceId !== null && (
           <HistoryPage
             key={deviceId}

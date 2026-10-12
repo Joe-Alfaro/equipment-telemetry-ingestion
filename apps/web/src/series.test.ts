@@ -28,7 +28,7 @@ describe('the window and gap constants', () => {
 })
 
 describe('buildSeries (rule 5)', () => {
-  it.fails('keeps only the requested metric, sorted by event time', () => {
+  it('keeps only the requested metric, sorted by event time', () => {
     const series = buildSeries(
       [
         at(10, { value: 3, sequence: 3 }),
@@ -45,13 +45,13 @@ describe('buildSeries (rule 5)', () => {
     expect(series.segments.flat().map((point) => point.reading.sequence)).toEqual([1, 2, 3])
   })
 
-  it.fails('does not split when consecutive readings are exactly gapMs apart', () => {
+  it('does not split when consecutive readings are exactly gapMs apart', () => {
     const series = buildSeries([at(100), at(70), at(40)], 'temperature', OPTIONS)
 
     expect(times(series)).toEqual([[100, 70, 40]])
   })
 
-  it.fails('splits wherever consecutive readings are more than gapMs apart', () => {
+  it('splits wherever consecutive readings are more than gapMs apart', () => {
     const series = buildSeries(
       [at(200), at(190), at(159.999), at(129.999), at(50)],
       'temperature',
@@ -61,7 +61,7 @@ describe('buildSeries (rule 5)', () => {
     expect(times(series)).toEqual([[200, 190], [159.999, 129.999], [50]])
   })
 
-  it.fails('splits at gapMs + 1 ms', () => {
+  it('splits at gapMs + 1 ms', () => {
     const series = buildSeries(
       [
         reading({ deviceId: 'dev-1', eventTime: new Date(NOW - 60_000).toISOString() }),
@@ -78,7 +78,7 @@ describe('buildSeries (rule 5)', () => {
     expect(series.segments.map((segment) => segment.length)).toEqual([1, 1])
   })
 
-  it.fails('keeps a lone reading as a one-point segment', () => {
+  it('keeps a lone reading as a one-point segment', () => {
     const series = buildSeries([at(300, { value: 7 })], 'temperature', OPTIONS)
 
     expect(series.segments).toEqual([[expect.objectContaining({ value: 7, time: NOW - 300_000 })]])
@@ -87,7 +87,7 @@ describe('buildSeries (rule 5)', () => {
     expect(series.max).toBe(7)
   })
 
-  it.fails('clips to the window, keeping a reading exactly windowMs old', () => {
+  it('clips to the window, keeping a reading exactly windowMs old', () => {
     const series = buildSeries(
       [at(600.001, { value: 100 }), at(600, { value: 1 }), at(590, { value: 2 })],
       'temperature',
@@ -99,7 +99,7 @@ describe('buildSeries (rule 5)', () => {
     expect(series.max).toBe(2)
   })
 
-  it.fails('keeps readings beyond now (future) instead of dropping them', () => {
+  it('keeps readings beyond now (future) instead of dropping them', () => {
     const series = buildSeries(
       [at(10, { value: 1 }), at(-90, { value: 2, future: true, sequence: 2 })],
       'temperature',
@@ -111,7 +111,7 @@ describe('buildSeries (rule 5)', () => {
     expect(series.max).toBe(2)
   })
 
-  it.fails('reports the min and max of the windowed readings', () => {
+  it('reports the min and max of the windowed readings', () => {
     const series = buildSeries(
       [at(30, { value: 68.1 }), at(20, { value: 75.2 }), at(10, { value: 72.4 })],
       'temperature',
@@ -122,21 +122,18 @@ describe('buildSeries (rule 5)', () => {
     expect(series.max).toBe(75.2)
   })
 
-  it.fails(
-    'breaks event-time ties for latest by gateway_id, then sequence (like current state)',
-    () => {
-      const tied = [
-        at(5, { gatewayId: 'gw-b', sequence: 1, value: 2 }),
-        at(5, { gatewayId: 'gw-b', sequence: 9, value: 3 }),
-        at(5, { gatewayId: 'gw-a', sequence: 50, value: 1 }),
-      ]
+  it('breaks event-time ties for latest by gateway_id, then sequence (like current state)', () => {
+    const tied = [
+      at(5, { gatewayId: 'gw-b', sequence: 1, value: 2 }),
+      at(5, { gatewayId: 'gw-b', sequence: 9, value: 3 }),
+      at(5, { gatewayId: 'gw-a', sequence: 50, value: 1 }),
+    ]
 
-      expect(buildSeries(tied, 'temperature', OPTIONS).latest?.value).toBe(3)
-      expect(buildSeries([...tied].reverse(), 'temperature', OPTIONS).latest?.value).toBe(3)
-    },
-  )
+    expect(buildSeries(tied, 'temperature', OPTIONS).latest?.value).toBe(3)
+    expect(buildSeries([...tied].reverse(), 'temperature', OPTIONS).latest?.value).toBe(3)
+  })
 
-  it.fails('is empty when nothing is in the window', () => {
+  it('is empty when nothing is in the window', () => {
     expect(buildSeries([at(601)], 'temperature', OPTIONS)).toEqual({
       segments: [],
       latest: null,
@@ -147,13 +144,13 @@ describe('buildSeries (rule 5)', () => {
 })
 
 describe('xDomain (rules 4 and 6)', () => {
-  it.fails('spans the window ending now', () => {
+  it('spans the window ending now', () => {
     const series = buildSeries([at(10)], 'temperature', OPTIONS)
 
     expect(xDomain(series, OPTIONS)).toEqual([NOW - WINDOW_MS, NOW])
   })
 
-  it.fails('extends past now to the latest future reading', () => {
+  it('extends past now to the latest future reading', () => {
     const series = buildSeries([at(10), at(-90, { future: true })], 'temperature', OPTIONS)
 
     expect(xDomain(series, OPTIONS)).toEqual([NOW - WINDOW_MS, NOW + 90_000])
@@ -161,7 +158,7 @@ describe('xDomain (rules 4 and 6)', () => {
 })
 
 describe('yDomain (rule 6)', () => {
-  it.fails('pads the data extent by about 10% and is not zero-based', () => {
+  it('pads the data extent by about 10% and is not zero-based', () => {
     const series = buildSeries(
       [at(20, { value: 70 }), at(10, { value: 80 })],
       'temperature',
@@ -179,7 +176,7 @@ describe('yDomain (rule 6)', () => {
     expect(high - 80).toBeLessThanOrEqual(1.5)
   })
 
-  it.fails.each([72.4, 0, -3])('gives a flat series at %d a finite symmetric pad', (value) => {
+  it.each([72.4, 0, -3])('gives a flat series at %d a finite symmetric pad', (value) => {
     const series = buildSeries([at(20, { value }), at(10, { value })], 'temperature', OPTIONS)
 
     const [low, high] = yDomain(series)

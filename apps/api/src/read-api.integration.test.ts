@@ -266,7 +266,7 @@ describe('GET /api/devices/:deviceId/readings?since=', () => {
     return response.json<Reading[]>()
   }
 
-  it.fails('returns only readings at or after since, in the same order and shape', async () => {
+  it('returns only readings at or after since, in the same order and shape', async () => {
     await seedTrend()
     const all = await readingsOf('/api/devices/trend/readings')
     const since = encodeURIComponent(isoAt(BASE, -30_000))
@@ -277,7 +277,7 @@ describe('GET /api/devices/:deviceId/readings?since=', () => {
     expect(windowed).toStrictEqual(all.filter((reading) => [3, 4, 5].includes(reading.sequence)))
   })
 
-  it.fails('honours the offset in since', async () => {
+  it('honours the offset in since', async () => {
     await seedTrend()
     // 13:59:30+02:00 is 11:59:30Z, i.e. BASE - 30s.
     const since = encodeURIComponent('2026-10-10T13:59:30+02:00')
@@ -287,7 +287,7 @@ describe('GET /api/devices/:deviceId/readings?since=', () => {
     expect(windowed.map((reading) => reading.sequence)).toEqual([3, 5, 4])
   })
 
-  it.fails('returns an empty list when nothing is that recent', async () => {
+  it('returns an empty list when nothing is that recent', async () => {
     await seedTrend()
     const since = encodeURIComponent(isoAt(BASE, 1))
 
@@ -306,7 +306,7 @@ describe('GET /api/devices/:deviceId/readings?since=', () => {
     expect(response.json()).toStrictEqual({ error: 'device not found' })
   })
 
-  it.fails.each(['yesterday', '2026-13-40T00:00:00Z', '2026-10-10T12:00:00', '12345'])(
+  it.each(['yesterday', '2026-13-40T00:00:00Z', '2026-10-10T12:00:00', '12345'])(
     'rejects since=%s with 400',
     async (since) => {
       await seedTrend()

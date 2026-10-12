@@ -100,7 +100,7 @@ async function tabTo(user: User, target: HTMLElement, presses = 0): Promise<void
 }
 
 describe('device card charts (rules 10, 11, 14 and 15)', () => {
-  it.fails('draws one chart per continuous metric with an accessible summary', async () => {
+  it('draws one chart per continuous metric with an accessible summary', async () => {
     const { card } = await findChillerCard()
 
     const temperature = await findChart(card, 'temperature')
@@ -126,7 +126,7 @@ describe('device card charts (rules 10, 11, 14 and 15)', () => {
     )
   })
 
-  it.fails('shows status as a plain value with no chart', async () => {
+  it('shows status as a plain value with no chart', async () => {
     const { card } = await findChillerCard()
     await findChart(card, 'temperature')
 
@@ -135,7 +135,7 @@ describe('device card charts (rules 10, 11, 14 and 15)', () => {
     expect(within(card).getByText('1')).toBeInTheDocument()
   })
 
-  it.fails('labels the end of each line with the latest value', async () => {
+  it('labels the end of each line with the latest value', async () => {
     const { card } = await findChillerCard()
 
     const temperature = await findChart(card, 'temperature')
@@ -147,7 +147,7 @@ describe('device card charts (rules 10, 11, 14 and 15)', () => {
     expect(vibration).not.toHaveTextContent(/as of/i)
   })
 
-  it.fails('adds "as of hh:mm:ss" when the latest reading is over 30 s old', async () => {
+  it('adds "as of hh:mm:ss" when the latest reading is over 30 s old', async () => {
     const { card } = await findChillerCard()
 
     const power = await findChart(card, 'power_draw')
@@ -156,7 +156,7 @@ describe('device card charts (rules 10, 11, 14 and 15)', () => {
     expect(power).toHaveTextContent(/as of \d{1,2}:\d{2}:20\b/)
   })
 
-  it.fails('shows the "−10m" and "now" ticks and a muted min–max range', async () => {
+  it('shows the "−10m" and "now" ticks and a muted min–max range', async () => {
     const { card } = await findChillerCard()
 
     const temperature = await findChart(card, 'temperature')
@@ -168,7 +168,7 @@ describe('device card charts (rules 10, 11, 14 and 15)', () => {
     expect(temperature).not.toHaveTextContent('99.9')
   })
 
-  it.fails('is keyboard-focusable and arrow keys move a tooltip between readings', async () => {
+  it('is keyboard-focusable and arrow keys move a tooltip between readings', async () => {
     const { card, user } = await findChillerCard()
     const temperature = await findChart(card, 'temperature')
 
@@ -209,7 +209,7 @@ describe('history page charts (rules 12-15)', () => {
     return { ...view, page }
   }
 
-  it.fails('draws a chart per continuous metric above the reading table', async () => {
+  it('draws a chart per continuous metric above the reading table', async () => {
     const { page } = await findPage(READINGS)
 
     expect(await findChart(page, 'temperature')).toHaveAccessibleName(
@@ -225,7 +225,7 @@ describe('history page charts (rules 12-15)', () => {
     expect(within(page).getByRole('table', { name: 'Reading history' })).toBeInTheDocument()
   })
 
-  it.fails('labels clock-time x ticks every 2 minutes and 4-5 y ticks', async () => {
+  it('labels clock-time x ticks every 2 minutes and 4-5 y ticks', async () => {
     const { page } = await findPage(READINGS)
 
     const temperature = await findChart(page, 'temperature')
@@ -239,7 +239,7 @@ describe('history page charts (rules 12-15)', () => {
     expect(numbers.length).toBeLessThanOrEqual(6)
   })
 
-  it.fails('keeps a future reading as the latest point and counts the gap before it', async () => {
+  it('keeps a future reading as the latest point and counts the gap before it', async () => {
     const { page } = await findPage(FLAGGED)
 
     const temperature = await findChart(page, 'temperature')
@@ -250,7 +250,7 @@ describe('history page charts (rules 12-15)', () => {
     expect(within(temperature).getByText('72.4')).toBeInTheDocument()
   })
 
-  it.fails('describes late, out-of-order and future flags in the tooltip', async () => {
+  it('describes late, out-of-order and future flags in the tooltip', async () => {
     const { page, user } = await findPage(FLAGGED)
     const temperature = await findChart(page, 'temperature')
 
@@ -274,7 +274,7 @@ describe('history page charts (rules 12-15)', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('gw-1')
   })
 
-  it.fails('explains the hollow-ring flag marker in a key under the charts', async () => {
+  it('explains the hollow-ring flag marker in a key under the charts', async () => {
     const { page } = await findPage(FLAGGED)
     await findChart(page, 'temperature')
 

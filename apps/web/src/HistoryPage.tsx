@@ -5,9 +5,12 @@ import { PossiblyBehindBadge } from './Board'
 import { ClockBadges } from './ClockBadges'
 import { formatTimestamp } from './format'
 import { Link } from './Link'
+import { MetricChart } from './MetricChart'
 import { MetricList } from './MetricList'
+import { buildSeries, chartDomain, GAP_MS, isCharted, WINDOW_MS } from './series'
 import type { FetchResult } from './useFetch'
 import { useFetch } from './useFetch'
+import { useNow } from './useNow'
 
 interface HistoryPageProps {
   deviceId: string
@@ -101,8 +104,61 @@ function DeviceHistory({ device, readings }: DeviceHistoryProps) {
         <MetricList metrics={device.metrics} />
       </section>
       <section className="panel">
+        {readings.data && <MetricCharts device={device} readings={readings.data} />}
         <ReadingHistory readings={readings} />
       </section>
+    </div>
+  )
+}
+
+interface MetricChartsProps {
+  device: DeviceSummary
+  readings: Reading[]
+}
+
+/**
+ * Rule 12: one large chart per continuous metric over the last 10 minutes, stacked as small
+ * multiples on one shared x domain, with a key for the hollow-ring flag marker.
+ */
+function MetricCharts({ device, readings }: MetricChartsProps) {
+  const now = useNow()
+  const metrics = [...new Set([...Object.keys(device.metrics), ...readings.map((r) => r.metric)])]
+    .filter(isCharted)
+    .sort((a, b) => a.localeCompare(b))
+  const charted = metrics
+    .map((metric) => ({
+      metric,
+      series: buildSeries(readings, metric, { now, windowMs: WINDOW_MS, gapMs: GAP_MS }),
+    }))
+    .filter(({ series }) => series.latest !== null)
+  const domain = chartDomain(
+    charted.map(({ series }) => series),
+    now,
+  )
+
+  if (charted.length === 0) {
+    return <p className="muted small">No readings in the last 10 minutes.</p>
+  }
+  return (
+    <div className="history-charts">
+      {charted.map(({ metric, series }) => (
+        <figure key={metric} className="history-chart">
+          <figcaption>{metric}</figcaption>
+          <MetricChart metric={metric} series={series} domain={domain} now={now} variant="page" />
+        </figure>
+      ))}
+      <p className="muted small chart-key">
+        <svg
+          className="chart-key-ring"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+        >
+          <circle cx="6" cy="6" r="4" />
+        </svg>
+        Hollow ring: a late, out of order or future reading (see the table for details).
+      </p>
     </div>
   )
 }
