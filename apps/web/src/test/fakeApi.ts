@@ -182,8 +182,15 @@ export function installFakeApi(seed: FakeApiSeed = {}): FakeApi {
         if (!findDevice(params.deviceId)) {
           return HttpResponse.json(errorBody('device not found'), { status: 404 })
         }
+        // Metric charts, rule 1: optional `since` keeps readings with eventTime >= since.
+        const sinceParam = new URL(request.url).searchParams.get('since')
+        const since = sinceParam === null ? null : Date.parse(sinceParam)
+        if (since !== null && Number.isNaN(since)) {
+          return HttpResponse.json(errorBody('invalid since'), { status: 400 })
+        }
         const history = state.readings
           .filter((r) => r.deviceId === params.deviceId)
+          .filter((r) => since === null || Date.parse(r.eventTime) >= since)
           .sort(byEventTime)
         return HttpResponse.json<Reading[]>(history)
       },

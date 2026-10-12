@@ -4,11 +4,19 @@ import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import { FakeEventSource } from './fakeEventSource'
 import { server } from './server'
 
+/** jsdom has no ResizeObserver; responsive charts only need it to exist. It never reports. */
+class StubResizeObserver implements ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 // Any request without a handler fails the test, so network use is always explicit.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 // jsdom has no EventSource; the SSE boundary is replaced with a controllable fake.
 beforeEach(() => {
   vi.stubGlobal('EventSource', FakeEventSource)
+  vi.stubGlobal('ResizeObserver', StubResizeObserver)
 })
 afterEach(() => {
   server.resetHandlers()

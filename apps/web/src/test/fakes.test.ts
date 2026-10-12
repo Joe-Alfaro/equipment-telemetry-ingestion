@@ -32,6 +32,22 @@ describe('fake read API (MSW)', () => {
     expect(history.map((r) => r.sequence)).toEqual([1, 2])
   })
 
+  it('keeps only readings at or after since', async () => {
+    installFakeApi({
+      devices: [registeredDevice('dev-1', 'Chiller 1')],
+      readings: [
+        reading({ deviceId: 'dev-1', sequence: 1, eventTime: '2026-10-10T11:49:59.999Z' }),
+        reading({ deviceId: 'dev-1', sequence: 2, eventTime: '2026-10-10T11:50:00.000Z' }),
+      ],
+    })
+
+    const since = encodeURIComponent('2026-10-10T11:50:00.000Z')
+    const response = await fetch(`/api/devices/dev-1/readings?since=${since}`)
+    const history = (await response.json()) as Reading[]
+
+    expect(history.map((r) => r.sequence)).toEqual([2])
+  })
+
   it('claims once, then answers 409 with the current device', async () => {
     const api = installFakeApi({ devices: [unregisteredDevice('dev-2')] })
     const claim = (name: string) =>

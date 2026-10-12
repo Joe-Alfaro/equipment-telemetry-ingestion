@@ -244,6 +244,84 @@ describe('GET /api/devices/:deviceId/readings', () => {
   })
 })
 
+/*
+ * Metric charts, rule 1: an optional `since` (ISO-8601 with an offset) keeps only readings with
+ * event_time >= since, in the same order and shape. An invalid `since` is a 400 ApiError.
+ */
+describe('GET /api/devices/:deviceId/readings?since=', () => {
+  async function seedTrend() {
+    await seed([
+      { device_id: 'trend', sequence: 1, value: 1, event_time: isoAt(BASE, -60_000) },
+      { device_id: 'trend', sequence: 2, value: 2, event_time: isoAt(BASE, -30_001) },
+      { device_id: 'trend', sequence: 3, value: 3, event_time: isoAt(BASE, -30_000) },
+      { device_id: 'trend', sequence: 4, value: 4, event_time: BASE },
+      // Ingested late (after sequence 4) but earlier in event time: still ordered by event_time.
+      { device_id: 'trend', sequence: 5, value: 5, event_time: isoAt(BASE, -10_000) },
+    ])
+  }
+
+  async function readingsOf(url: string) {
+    const response = await app().inject({ method: 'GET', url })
+    expect(response.statusCode).toBe(200)
+    return response.json<Reading[]>()
+  }
+
+  it.fails('returns only readings at or after since, in the same order and shape', async () => {
+    await seedTrend()
+    const all = await readingsOf('/api/devices/trend/readings')
+    const since = encodeURIComponent(isoAt(BASE, -30_000))
+
+    const windowed = await readingsOf(`/api/devices/trend/readings?since=${since}`)
+
+    expect(windowed.map((reading) => reading.sequence)).toEqual([3, 5, 4])
+    expect(windowed).toStrictEqual(all.filter((reading) => [3, 4, 5].includes(reading.sequence)))
+  })
+
+  it.fails('honours the offset in since', async () => {
+    await seedTrend()
+    // 13:59:30+02:00 is 11:59:30Z, i.e. BASE - 30s.
+    const since = encodeURIComponent('2026-10-10T13:59:30+02:00')
+
+    const windowed = await readingsOf(`/api/devices/trend/readings?since=${since}`)
+
+    expect(windowed.map((reading) => reading.sequence)).toEqual([3, 5, 4])
+  })
+
+  it.fails('returns an empty list when nothing is that recent', async () => {
+    await seedTrend()
+    const since = encodeURIComponent(isoAt(BASE, 1))
+
+    expect(await readingsOf(`/api/devices/trend/readings?since=${since}`)).toStrictEqual([])
+  })
+
+  it('still returns 404 for an unknown device', async () => {
+    const since = encodeURIComponent(BASE)
+
+    const response = await app().inject({
+      method: 'GET',
+      url: `/api/devices/ghost/readings?since=${since}`,
+    })
+
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toStrictEqual({ error: 'device not found' })
+  })
+
+  it.fails.each(['yesterday', '2026-13-40T00:00:00Z', '2026-10-10T12:00:00', '12345'])(
+    'rejects since=%s with 400',
+    async (since) => {
+      await seedTrend()
+
+      const response = await app().inject({
+        method: 'GET',
+        url: `/api/devices/trend/readings?since=${encodeURIComponent(since)}`,
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json<ApiError>().error).toEqual(expect.any(String))
+    },
+  )
+})
+
 describe('POST /api/devices/:deviceId/claim', () => {
   it('returns 200 with the registered DeviceSummary, then 409 with the unchanged summary', async () => {
     await seedTwoDevices()
